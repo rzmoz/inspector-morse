@@ -1,0 +1,18 @@
+{
+  "name": "inspector.gadget",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Config-driven codebase dependency-graph + DSM generator. Point it at an inspector.gadget.json and it emits a namespace dependency SVG (Graphviz) plus an interactive Dependency Structure Matrix HTML, with file / namespace / context-level cycle (SCC) analysis.",
+  "bin": {
+    "inspector.gadget": "bin/cli.mjs"
+  },
+  "scripts": {
+    "graph": "node bin/cli.mjs graph",
+    "dsm": "node bin/cli.mjs dsm",
+    "all": "node bin/cli.mjs all"
+  },
+  "dependencies": {
+    "@hpcc-js/wasm": "^2.33.6"
+  }
+}
