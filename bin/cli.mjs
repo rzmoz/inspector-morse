@@ -5,8 +5,8 @@
 //
 // Resolves the settings file (--config, else $IG_CONFIG_PATH, else the nearest
 // inspector.gadget.json walking up from the current directory). Outputs default
-// to that file's directory. `all` (the default) emits both the graph SVG and
-// the DSM HTML in one pass.
+// to that file's directory. All three commands now emit the same single
+// combined viewer (Matrix + Graph tabs); the names are kept for familiarity.
 import { resolve } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -19,7 +19,6 @@ if (!['graph', 'dsm', 'all'].includes(cmd)) {
   process.exit(1);
 }
 
-// The renderers self-run on import (each reads the config via loadConfig);
-// importing in sequence runs graph then dsm in a single process.
-if (cmd === 'graph' || cmd === 'all') await import('../src/graph.mjs');
-if (cmd === 'dsm' || cmd === 'all') await import('../src/dsm.mjs');
+// The renderer self-runs on import (reads the config via loadConfig) and writes
+// the combined Matrix + Graph viewer in one pass.
+await import('../src/dsm.mjs');

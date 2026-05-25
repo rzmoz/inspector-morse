@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Config-driven codebase dependency-graph + DSM generator. Point it at an inspector.gadget.json and it emits a namespace dependency SVG (Graphviz) plus an interactive Dependency Structure Matrix HTML, with file / namespace / context-level cycle (SCC) analysis.",
+  "description": "Config-driven codebase dependency viewer. Point it at an inspector.gadget.json and it emits a single self-contained HTML with two interactive tabs — an NDepend-style Dependency Structure Matrix and a Cytoscape dependency graph — with file / namespace / context-level cycle (SCC) analysis.",
   "bin": {
     "inspector.gadget": "bin/cli.mjs"
   },
@@ -13,6 +13,7 @@
     "all": "node bin/cli.mjs all"
   },
   "dependencies": {
-    "@hpcc-js/wasm": "^2.33.6"
+    "cytoscape": "^3.33.4",
+    "cytoscape-fcose": "^2.2.0"
   }
 }

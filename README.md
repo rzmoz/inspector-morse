@@ -4,16 +4,17 @@ Tooling for code inspection on various tech-stacks — relevant in the AI era wh
 manual coding is almost absent but understanding of code is ever as relevant.
 
 Config-driven **codebase dependency** tooling. Point it at an
-`inspector.gadget.json` and it emits:
+`inspector.gadget.json` and it emits a single self-contained
+**`codebase-dsm.html`** (no runtime; opens from `file://`) with two tabs:
 
-- **`codebase-graph.namespaces.svg`** — a namespace-level dependency graph
-  (Graphviz), bounded contexts as tinted clusters, edges coloured by
-  directionality health (cycle / cross-context / forward / intra).
-- **`codebase-dsm.html`** — a self-contained, interactive **Dependency Structure
-  Matrix** (no runtime; opens from `file://`), switchable across file /
-  namespace / context levels.
+- **Matrix** — an interactive NDepend-style **Dependency Structure Matrix**,
+  switchable across file / namespace / context via expand-collapse, third-party
+  references on the row axis.
+- **Graph** — an interactive **Cytoscape** dependency graph: bounded contexts
+  and namespaces always shown, click a namespace to reveal/hide its files, edges
+  coloured by directionality health (cycle / cross-context / forward / intra).
 
-Both share one model: a `.ts`/`.tsx` import scan → file dependency graph →
+Both tabs share one model: a `.ts`/`.tsx` import scan → file dependency graph →
 namespace/context clustering → Tarjan **SCC** at all three levels. Whole-statement
 `import type` / `export type` edges are excluded from the file graph (they erase
 at build, so they are not runtime dependencies and must not form cycles) — but
@@ -32,8 +33,10 @@ node /path/to/inspector.gadget/bin/cli.mjs [graph|dsm|all] [--config <path>]
 ```
 
 The config is found via `--config`, else `$IG_CONFIG_PATH`, else the nearest
-`inspector.gadget.json` walking up from the current directory. `all` (default)
-emits both. (If linked via `npm link`, the `inspector.gadget` bin runs anywhere.)
+`inspector.gadget.json` walking up from the current directory. `graph`, `dsm`
+and `all` all emit the same combined viewer (the names are kept for
+familiarity). (If linked via `npm link`, the `inspector.gadget` bin runs
+anywhere.)
 
 ## `inspector.gadget.json`
 
@@ -48,10 +51,7 @@ section), not configured.
   "includeDts": ["contracts/index.d.ts"],                 // .d.ts files to include (otherwise .d.ts is skipped)
   "output": {
     "dir": ".",                                           // default: same dir as this file
-    "graph": "codebase-graph.namespaces.svg",
-    "dsm": "codebase-dsm.html",
-    "fileLevelGraph": "codebase-graph.svg",
-    "emitFileLevel": false
+    "dsm": "codebase-dsm.html"                            // the combined Matrix + Graph viewer
   }
 }
 ```
@@ -79,13 +79,15 @@ Non-relative imports that don't resolve to a scanned file are collected as
 …). In the DSM they form a purple `(third-party)` context pinned to the bottom,
 switchable with the **3rd-party / hide** toggle. `node:` builtins are ignored;
 `import type … from 'pkg'` counts (a type-only import is still a real reference).
-They are pure sinks, so they never enter cycle analysis and never appear in the
-namespace SVG — they exist only in the matrix.
+They are pure sinks, so they never enter cycle analysis, and they appear only on
+the matrix row axis — the Graph tab is first-party only.
 
 ## Layout
 
 - `bin/cli.mjs` — CLI entry / dispatch.
 - `src/config.mjs` — load + validate `inspector.gadget.json`.
 - `src/codebase-model.mjs` — `buildModel(config)`: scan, resolve, cluster, SCC.
-- `src/graph.mjs` — Graphviz namespace SVG + console directionality report.
-- `src/dsm.mjs` — interactive DSM HTML (inlines `src/dsm.client.js`).
+- `src/dsm.mjs` — assembles the combined viewer HTML; inlines the matrix client,
+  the graph client, and Cytoscape + fcose from `node_modules`.
+- `src/dsm.client.js` — browser renderer for the **Matrix** tab.
+- `src/graph.client.js` — browser renderer for the **Graph** tab (Cytoscape).

@@ -1,13 +1,16 @@
-// Dependency Structure Matrix (DSM) → a single, self-contained, interactive
-// HTML file (no React/Node runtime — opens straight from file://). The NDepend-
-// style square matrix: rows/cols are the same ordered node set; a non-empty cell
-// at (row i, col j) means "i depends on j". Run with `npm run dsm` (from
-// TOW.InspectorGadget). Writes <repo>/codebase-dsm.html (gitignored).
+// Combined, self-contained interactive viewer → one HTML file (no React/Node
+// runtime — opens straight from file://) with two tabs:
+//   • Matrix — the NDepend-style DSM (rows/cols are the same node set; a cell at
+//     (row i, col j) means "i depends on j"), switchable across context /
+//     namespace / file via expand-collapse.
+//   • Graph — an interactive Cytoscape dependency graph (contexts + namespaces
+//     always shown; click a namespace to reveal/hide its files).
+// Writes <repo>/codebase-dsm.html. Run with `npm run all` / `dsm` / `graph`.
 //
-// Reuses the shared ./codebase-model.mjs (same scan / import resolution /
-// clustering / Tarjan SCC as graph.mjs) and renders three switchable levels:
-// bounded context (4×4), namespace (~20×20), and file (every .ts/.tsx). The
-// browser renderer lives in ./dsm.client.js and is inlined verbatim below.
+// Reuses the shared ./codebase-model.mjs (one scan / import resolution /
+// clustering / Tarjan SCC). The matrix renderer lives in ./dsm.client.js and the
+// graph renderer in ./graph.client.js; both are inlined verbatim below, along
+// with Cytoscape + fcose from node_modules.
 //
 // CELL COLOURS:  blue = row depends on col   green = col depends on row
 //                black = mutual (cycle)       red outline = inside a cycle (SCC)
@@ -22,7 +25,7 @@ import { buildModel } from './codebase-model.mjs';
 
 const config = loadConfig();
 const {
-  files, edges, allCtx, allGroups, byGroup, CONTEXTS,
+  files, edges, allCtx, allGroups, byGroup, gAdj, CONTEXTS,
   contextOf, ctxColour, groupOf, colourOf,
   fileScc, groupScc, ctxScc, thirdParty,
 } = buildModel(config);
@@ -175,15 +178,45 @@ if (packages.length) {
 }
 const tpEdgeIdx = thirdParty.edges.map(([f, pkg]) => [fIndex.get(f), tpFi.get(pkg)]);
 
-const payload = { nodes, roots, edges: [...edgeIdx, ...tpEdgeIdx], filePaths: [...files, ...packages], fileComp, cycleComps, reachPairs, contexts, thirdPartyCtxId: packages.length ? tpCtxId : null, fileCount: files.length, edgeCount: edges.length, tpCount: packages.length };
+// ---- graph-tab data (first-party only; third-party omitted from the graph) ----
+// Contexts = compound parents, namespaces = collapsible compounds, files =
+// leaves. ns→ns edges carry directionality (crossCtx / nsCycle / forward);
+// intra-namespace file→file edges (shown when a namespace is expanded) are
+// intra or fileCycle. Rendered by graph.client.js with Cytoscape.
+const gCtxOf = new Map(allGroups.map((g) => [g, contextOf(byGroup.get(g)[0])]));
+const gNodes = [];
+for (const c of allCtx) gNodes.push({ id: 'c:' + c, label: c, kind: 'context', colour: ctxColour(c) });
+for (const g of allGroups) gNodes.push({ id: 'n:' + g, parent: 'c:' + gCtxOf.get(g), label: g.split(' · ').pop(), kind: 'namespace', colour: colourOf(g), title: g });
+for (const f of files) gNodes.push({ id: 'f:' + fIndex.get(f), parent: 'n:' + groupOf(f), label: f.split('/').pop(), kind: 'file', colour: colourOf(groupOf(f)), title: f });
+const gNsEdges = [];
+for (const [g, set] of gAdj) for (const h of set) {
+  const kind = gCtxOf.get(g) !== gCtxOf.get(h) ? 'crossCtx'
+    : (groupScc.id.get(g) === groupScc.id.get(h) && groupScc.size(g) > 1) ? 'nsCycle' : 'forward';
+  gNsEdges.push({ source: 'n:' + g, target: 'n:' + h, kind });
+}
+const gFileEdges = [];
+for (const [a, b] of edges) {
+  if (groupOf(a) !== groupOf(b)) continue; // only intra-namespace file edges in the graph
+  const cyc = fileScc.id.get(a) === fileScc.id.get(b) && fileScc.size(a) > 1;
+  gFileEdges.push({ source: 'f:' + fIndex.get(a), target: 'f:' + fIndex.get(b), ns: 'n:' + groupOf(a), kind: cyc ? 'fileCycle' : 'intra' });
+}
+const graph = { nodes: gNodes, nsEdges: gNsEdges, fileEdges: gFileEdges };
+
+const payload = { nodes, roots, edges: [...edgeIdx, ...tpEdgeIdx], filePaths: [...files, ...packages], fileComp, cycleComps, reachPairs, contexts, thirdPartyCtxId: packages.length ? tpCtxId : null, fileCount: files.length, edgeCount: edges.length, tpCount: packages.length, graph };
 
 // ---- assemble the single HTML file ----
 const CSS = `
   *{box-sizing:border-box}
   body{margin:0;font:13px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;background:#f8fafc}
-  header{padding:14px 18px 4px}
-  h1{font-size:16px;margin:0 0 2px;font-weight:650}
+  header{padding:12px 18px 4px}
+  h1{font-size:16px;margin:0 0 4px;font-weight:650}
   .meta{color:#64748b;font-size:12px}
+  .tabs{display:inline-flex;gap:5px;margin:0 0 4px}
+  .tabs button{border:1px solid #cbd5e1;background:#fff;padding:4px 16px;font:inherit;font-weight:600;cursor:pointer;border-radius:7px;color:#334155}
+  .tabs button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  .gbtn{border:1px solid #cbd5e1;background:#fff;padding:5px 11px;font:inherit;cursor:pointer;border-radius:7px;color:#334155}
+  #graphpane{position:relative}
+  #cy{width:100%;height:calc(100vh - 150px);background:#f8fafc}
   .controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:8px 18px}
   .seg{display:inline-flex;border:1px solid #cbd5e1;border-radius:7px;overflow:hidden}
   .seg button{border:0;background:#fff;padding:5px 11px;font:inherit;cursor:pointer;border-right:1px solid #e2e8f0;color:#334155}
@@ -238,6 +271,9 @@ const CSS = `
   .ctxbar i{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid #00000022}
 `;
 const CLIENT = readFileSync(join(HERE, 'dsm.client.js'), 'utf8');
+const GRAPH_CLIENT = readFileSync(join(HERE, 'graph.client.js'), 'utf8');
+const LIBS = ['cytoscape/dist/cytoscape.min.js', 'layout-base/layout-base.js', 'cose-base/cose-base.js', 'cytoscape-fcose/cytoscape-fcose.js']
+  .map((p) => readFileSync(join(HERE, '..', 'node_modules', p), 'utf8')).join('\n;\n');
 
 const title = config.title;
 const html = `<!doctype html>
@@ -248,35 +284,72 @@ const html = `<!doctype html>
 <body>
 <header>
   <h1>${title}</h1>
+  <div class="tabs"><button data-tab="matrix" class="on">Matrix</button><button data-tab="graph">Graph</button></div>
   <div class="meta" id="meta"></div>
 </header>
-<div class="controls">
-  <div class="seg" id="xpand"><button data-act="expand">Expand all</button><button data-act="collapse">Collapse all</button></div>
-  <div class="seg" data-ctl="order"><button data-val="tri">Triangular</button><button data-val="alpha">Alphabetical</button></div>
-  <div class="seg" data-ctl="mode"><button data-val="direct">Direct</button><button data-val="indirect">+ Indirect</button></div>
-  <div class="seg" data-ctl="tp"><button data-val="show">3rd-party</button><button data-val="hide">hide</button></div>
-  <div class="legend">
-    <span><i style="background:#3b82f6"></i>row→col depends</span>
-    <span><i style="background:#16a34a"></i>col→row depends</span>
-    <span><i style="background:#111"></i>mutual</span>
-    <span><i style="background:#fff;box-shadow:inset 0 0 0 2px #dc2626"></i>cycle</span>
-    <span><i style="background:#bfdbfe"></i>indirect</span>
+<div id="matrixpane">
+  <div class="controls">
+    <div class="seg" id="xpand"><button data-act="expand">Expand all</button><button data-act="collapse">Collapse all</button></div>
+    <div class="seg" data-ctl="order"><button data-val="tri">Triangular</button><button data-val="alpha">Alphabetical</button></div>
+    <div class="seg" data-ctl="mode"><button data-val="direct">Direct</button><button data-val="indirect">+ Indirect</button></div>
+    <div class="seg" data-ctl="tp"><button data-val="show">3rd-party</button><button data-val="hide">hide</button></div>
+    <div class="legend">
+      <span><i style="background:#3b82f6"></i>row→col depends</span>
+      <span><i style="background:#16a34a"></i>col→row depends</span>
+      <span><i style="background:#111"></i>mutual</span>
+      <span><i style="background:#fff;box-shadow:inset 0 0 0 2px #dc2626"></i>cycle</span>
+      <span><i style="background:#bfdbfe"></i>indirect</span>
+    </div>
+  </div>
+  <div class="ctxbar" id="ctxlegend"></div>
+  <div class="help" id="help"></div>
+  <div class="stage">
+    <div class="grid" id="grid"></div>
+    <aside class="panel empty" id="panel"><div id="pbody"></div></aside>
   </div>
 </div>
-<div class="ctxbar" id="ctxlegend"></div>
-<div class="help" id="help"></div>
-<div class="stage">
-  <div class="grid" id="grid"></div>
-  <aside class="panel empty" id="panel"><div id="pbody"></div></aside>
+<div id="graphpane" style="display:none">
+  <div class="controls">
+    <div class="seg"><button data-g="expand">Expand all</button><button data-g="collapse">Collapse all</button></div>
+    <button class="gbtn" data-g="fit">Fit</button>
+    <button class="gbtn" data-g="relayout">Re-layout</button>
+    <div class="legend">
+      <span><i style="background:#7b2ff7"></i>cross-context</span>
+      <span><i style="background:#ff8c00"></i>namespace cycle</span>
+      <span><i style="background:#3b82f6"></i>forward</span>
+      <span><i style="background:#b8c0cc"></i>intra (file)</span>
+      <span><i style="background:#dd0000"></i>file cycle</span>
+    </div>
+  </div>
+  <div id="cy"></div>
 </div>
+<script>${LIBS}</script>
 <script>const DATA=${JSON.stringify(payload)};</script>
 <script>${CLIENT}</script>
+<script>${GRAPH_CLIENT}</script>
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.tabs button');
+  const mp = document.getElementById('matrixpane'), gp = document.getElementById('graphpane');
+  tabs.forEach((b) => b.addEventListener('click', () => {
+    tabs.forEach((x) => x.classList.toggle('on', x === b));
+    const t = b.dataset.tab;
+    mp.style.display = t === 'matrix' ? '' : 'none';
+    gp.style.display = t === 'graph' ? '' : 'none';
+    if (t === 'graph' && window.IGGraph) { IGGraph.init(document.getElementById('cy')); IGGraph.resize(); IGGraph.fit(); }
+  }));
+  document.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => {
+    if (!window.IGGraph) return;
+    ({ expand: IGGraph.expandAll, collapse: IGGraph.collapseAll, fit: IGGraph.fit, relayout: IGGraph.relayout }[b.dataset.g] || (() => {}))();
+  }));
+})();
+</script>
 </body></html>`;
 
 const out = config.output.dsm;
 writeFileSync(out, html, 'utf8');
 
-// ---- console: directionality report (parity with graph.mjs) ----
+// ---- console: directionality report ----
 console.log(`files: ${files.length} | edges: ${edges.length} | namespaces: ${allGroups.length} | contexts: ${allCtx.length}`);
 const fileCycles = fileScc.comps.filter((c) => c.length > 1);
 const nsCycles = groupScc.comps.filter((c) => c.length > 1);
@@ -287,4 +360,4 @@ console.log(`\nnamespace cycles (not uni-directional): ${nsCycles.length || 'non
 for (const comp of nsCycles) console.log('  • ' + comp.join('  <->  '));
 console.log(`\nfile import cycles: ${fileCycles.length || 'none ✓'}`);
 for (const comp of fileCycles) console.log('  • ' + comp.join('  <->  '));
-console.log(`\nwrote: ${out} (${(html.length / 1024).toFixed(0)} KB)  — interactive DSM (open in a browser)`);
+console.log(`\nwrote: ${out} (${(html.length / 1024).toFixed(0)} KB)  — interactive viewer: Matrix + Graph tabs (open in a browser)`);

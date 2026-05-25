@@ -41,10 +41,8 @@ export function loadConfig(explicitPath) {
     exclude: raw.exclude ?? ['node_modules', 'dist', 'build'],
     includeDts: raw.includeDts ?? [],
     output: {
-      graph: resolve(outDir, raw.output?.graph ?? 'codebase-graph.namespaces.svg'),
+      // single combined viewer (Matrix + Graph tabs)
       dsm: resolve(outDir, raw.output?.dsm ?? 'codebase-dsm.html'),
-      fileLevelGraph: resolve(outDir, raw.output?.fileLevelGraph ?? 'codebase-graph.svg'),
-      emitFileLevel: raw.output?.emitFileLevel ?? false,
     },
   };
 }
