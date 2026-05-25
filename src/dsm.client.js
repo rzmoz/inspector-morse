@@ -12,7 +12,8 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const T = DATA, N = T.nodes;
-  const state = { order: 'tri', mode: 'direct' };
+  const TP = T.thirdPartyCtxId; // the (third-party) context id, or null
+  const state = { order: 'tri', mode: 'direct', tp: 'show' };
   const expanded = {};
   for (const id in N) { const k = N[id].kind; if (k === 'context') expanded[id] = true; else if (k === 'namespace') expanded[id] = false; }
 
@@ -35,6 +36,10 @@
   // children / roots in the active sibling order
   const ordered = (arr) => state.order === 'alpha' ? arr.slice().sort((p, q) => N[p].label.localeCompare(N[q].label)) : arr;
   const kids = (id) => ordered(N[id].children);
+  // root contexts in the active order, with (third-party) always pinned last
+  // (it's a pure sink, so it would otherwise float to the top), and dropped when
+  // the third-party toggle is off.
+  const rootOrder = () => { let a = ordered(T.roots); if (TP) { a = a.filter((id) => id !== TP); if (state.tp === 'show') a.push(TP); } return a; };
 
   // visible ancestors of a file (the nodes that currently carry its weight)
   const visAnc = (fi) => { const fid = 'f:' + fi, ns = N[fid].parent, ctx = N[ns].parent; const out = [ctx]; if (expanded[ctx]) { out.push(ns); if (expanded[ns]) out.push(fid); } return out; };
@@ -51,7 +56,7 @@
     // visible nodes = pre-order over the expanded tree
     const vis = [];
     const recf = (id) => { vis.push(id); if (N[id].kind !== 'file' && expanded[id]) for (const c of kids(id)) recf(c); };
-    for (const r of ordered(T.roots)) recf(r);
+    for (const r of rootOrder()) recf(r);
     const n = vis.length;
 
     // aggregate cells from file edges (parent rows sum their descendants)

@@ -1,15 +1,17 @@
 // Shared codebase model — the analysis half of the tool. Walks every .ts/.tsx
 // under the derived source roots (+ any explicitly-included .d.ts), resolves
-// the codebase's own relative + aliased imports into a file-dependency graph,
-// clusters files into namespaces inside bounded contexts, and runs Tarjan SCC
-// at all three levels (file / namespace / context). Pure Node built-ins — NO
+// the codebase's own relative imports into a file-dependency graph, clusters
+// files into namespaces inside bounded contexts, and runs Tarjan SCC at all
+// three levels (file / namespace / context). Non-relative imports that don't
+// resolve to a scanned file (npm packages, etc.) are collected separately as
+// THIRD-PARTY references (consumed only by the DSM). Pure Node built-ins — NO
 // Graphviz. Imported by both graph.mjs (SVG) and dsm.mjs (matrix) so the two
 // tools share ONE definition of "the codebase" and never drift.
 //
 // `buildModel(config)` derives contexts (top-level dirs), source roots (each
 // context's `src/`, else itself) and namespaces (first segment below the source
-// root) from the directory tree; only aliases / exclude / includeDts / title /
-// output come from inspector.gadget.json.
+// root) from the directory tree; only exclude / includeDts / title / output
+// come from inspector.gadget.json.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, posix } from 'node:path';
 
@@ -36,7 +38,7 @@ export function sccOf(nodes, adj) {
 }
 
 export function buildModel(config) {
-  const { root, aliases, exclude, includeDts } = config;
+  const { root, exclude, includeDts } = config;
   const rel = (p) => relative(root, p).split('\\').join('/');
 
   // ---- discover bounded contexts + their source roots from the directory tree ----
@@ -83,17 +85,12 @@ export function buildModel(config) {
   files.sort(); // deterministic order → stable SVG + clean matrix/report diffs
   const fileSet = new Set(files);
 
-  // ---- resolve a relative/aliased import specifier to a known file ----
+  // ---- resolve a relative import specifier to a known file (null otherwise) ----
+  // Only relative specs are internal. Non-relative specs (packages) never map to
+  // a scanned file — they're handled as third-party references below.
   function resolve(fromFile, spec) {
-    let base;
-    const alias = aliases.find(([a]) => spec === a || spec.startsWith(a + '/'));
-    if (alias) {
-      base = posix.normalize(alias[1] + spec.slice(alias[0].length)); // repo-root relative
-    } else if (spec.startsWith('.')) {
-      base = posix.normalize(posix.join(posix.dirname(fromFile), spec));
-    } else {
-      return null; // 3rd-party package
-    }
+    if (!spec.startsWith('.')) return null;
+    const base = posix.normalize(posix.join(posix.dirname(fromFile), spec));
     const noJs = base.replace(/\.js$/, '');
     for (const b of [base, noJs]) {
       for (const c of [b, b + '.ts', b + '.tsx', b + '/index.ts', b + '/index.tsx']) {
@@ -101,6 +98,15 @@ export function buildModel(config) {
       }
     }
     return null;
+  }
+
+  // ---- third-party package root for a non-relative specifier ----
+  // node: builtins are dropped; "@scope/name" → first two segments; otherwise
+  // the first segment. Returns null for builtins (→ ignored).
+  function pkgRoot(spec) {
+    if (spec.startsWith('node:')) return null;
+    const parts = spec.split('/');
+    return spec.startsWith('@') && parts.length > 1 ? parts.slice(0, 2).join('/') : parts[0];
   }
 
   // ---- contexts + namespaces (auto-derived; colours from deterministic palettes) ----
@@ -130,12 +136,26 @@ export function buildModel(config) {
   const dynRe = /(?:\bimport\b|\brequire)\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
   const edges = [];
   const seen = new Set();
-  function addEdge(f, spec) {
-    const tgt = resolve(f, spec);
+  function addInternal(f, tgt) {
     if (tgt && tgt !== f) {
       const key = f + '>' + tgt;
       if (!seen.has(key)) { seen.add(key); edges.push([f, tgt]); }
     }
+  }
+  // third-party reference edges (file → external package). Collected for the DSM
+  // only: they never enter `edges`/SCC, so first-party cycle analysis and the
+  // namespace SVG stay first-party. Unlike internal edges, type-only imports
+  // DO count here (a `import type … from 'pkg'` is still a real reference).
+  const tpEdges = [];
+  const tpSeen = new Set();
+  const tpPkgs = new Set();
+  function addExternal(f, spec) {
+    if (spec.startsWith('.')) return; // relative-but-unresolved (asset/json) → ignore
+    const pkg = pkgRoot(spec);
+    if (!pkg) return;                 // node: builtin
+    tpPkgs.add(pkg);
+    const key = f + '>' + pkg;
+    if (!tpSeen.has(key)) { tpSeen.add(key); tpEdges.push([f, pkg]); }
   }
   for (const f of files) {
     let src;
@@ -143,13 +163,15 @@ export function buildModel(config) {
     let m;
     fromRe.lastIndex = 0;
     while ((m = fromRe.exec(src))) {
-      if (/^\s+type\b/.test(m[1])) continue; // `import type` / `export type` → erased, skip
-      addEdge(f, m[2]);
+      const typeOnly = /^\s+type\b/.test(m[1]); // `import type`/`export type` → erased at build
+      const tgt = resolve(f, m[2]);
+      if (tgt) { if (!typeOnly) addInternal(f, tgt); } // type-only internal still excluded
+      else addExternal(f, m[2]);                       // external ref (type-only counts)
     }
     sideRe.lastIndex = 0;
-    while ((m = sideRe.exec(src))) addEdge(f, m[1]);
+    while ((m = sideRe.exec(src))) { const t = resolve(f, m[1]); if (t) addInternal(f, t); else addExternal(f, m[1]); }
     dynRe.lastIndex = 0;
-    while ((m = dynRe.exec(src))) addEdge(f, m[1]);
+    while ((m = dynRe.exec(src))) { const t = resolve(f, m[1]); if (t) addInternal(f, t); else addExternal(f, m[1]); }
   }
 
   // file-level SCCs
@@ -185,5 +207,6 @@ export function buildModel(config) {
     fileScc, groupScc, ctxScc,
     allGroups, allCtx, gAdj, byGroup, groupsByCtx,
     contextOf, ctxColour, groupOf, colourOf, CONTEXTS,
+    thirdParty: { packages: [...tpPkgs].sort(), edges: tpEdges },
   };
 }

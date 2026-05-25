@@ -15,8 +15,10 @@ Config-driven **codebase dependency** tooling. Point it at an
 
 Both share one model: a `.ts`/`.tsx` import scan → file dependency graph →
 namespace/context clustering → Tarjan **SCC** at all three levels. Whole-statement
-`import type` / `export type` edges are excluded (they erase at build, so they
-are not runtime dependencies and must not form cycles).
+`import type` / `export type` edges are excluded from the file graph (they erase
+at build, so they are not runtime dependencies and must not form cycles) — but
+type-only imports of *external* packages still count as third-party references
+(see below).
 
 ## Usage
 
@@ -42,7 +44,6 @@ section), not configured.
 ```jsonc
 {
   "title": "My Project · Dependency Structure Matrix",   // DSM <title>/<h1>
-  "aliases": { "@app": "packages/a/src" },                // non-relative import aliases → repo-relative path
   "exclude": ["node_modules", "dist", "build"],           // directory names skipped while walking (REPLACES the default, not merged)
   "includeDts": ["contracts/index.d.ts"],                 // .d.ts files to include (otherwise .d.ts is skipped)
   "output": {
@@ -70,6 +71,16 @@ section), not configured.
 
 Context and namespace **colours** are assigned automatically from fixed pastel
 palettes (by sorted name), so output is deterministic across runs.
+
+### Third-party references
+
+Non-relative imports that don't resolve to a scanned file are collected as
+**third-party reference nodes** — one per package root (`react`, `@scope/name`,
+…). In the DSM they form a purple `(third-party)` context pinned to the bottom,
+switchable with the **3rd-party / hide** toggle. `node:` builtins are ignored;
+`import type … from 'pkg'` counts (a type-only import is still a real reference).
+They are pure sinks, so they never enter cycle analysis and never appear in the
+namespace SVG — they exist only in the matrix.
 
 ## Layout
 

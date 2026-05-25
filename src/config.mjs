@@ -1,6 +1,6 @@
 // Loads inspector.gadget.json — the per-project settings file. The tool itself
-// is generic; the JSON carries import aliases, walk excludes, included .d.ts
-// contracts, the DSM title and output names. The file's own directory is the
+// is generic; the JSON carries walk excludes, included .d.ts contracts, the DSM
+// title and output names. The file's own directory is the
 // project ROOT: contexts, source roots and namespaces are DERIVED from the tree
 // under it (see codebase-model.mjs), and outputs default there.
 import { readFileSync, existsSync } from 'node:fs';
@@ -38,7 +38,6 @@ export function loadConfig(explicitPath) {
     configPath,
     root,
     title: raw.title ?? 'Dependency Structure Matrix',
-    aliases: Object.entries(raw.aliases ?? {}),
     exclude: raw.exclude ?? ['node_modules', 'dist', 'build'],
     includeDts: raw.includeDts ?? [],
     output: {

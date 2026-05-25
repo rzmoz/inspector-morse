@@ -24,7 +24,7 @@ const config = loadConfig();
 const {
   files, edges, allCtx, allGroups, byGroup, CONTEXTS,
   contextOf, ctxColour, groupOf, colourOf,
-  fileScc, groupScc, ctxScc,
+  fileScc, groupScc, ctxScc, thirdParty,
 } = buildModel(config);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -154,7 +154,28 @@ for (let i = 0; i < files.length; i++) {
   for (const j of seen) if (j !== i) reachPairs.push([i, j]);
 }
 
-const payload = { nodes, roots, edges: edgeIdx, filePaths: files, fileComp, cycleComps, reachPairs, contexts, fileCount: files.length, edgeCount: edges.length };
+// ---- third-party reference nodes (external packages). Modelled as synthetic
+// sink "files" appended to the index space so the matrix aggregation handles
+// them with no change; they carry no SCC/reachability (pure sinks). Rendered
+// purple and pinned to the bottom by the client; toggleable in the UI. ----
+const TP_CTX = '(third-party)', TP_CTX_COLOUR = '#e9d5ff', TP_NODE_COLOUR = '#d8b4fe';
+const packages = thirdParty.packages;
+const tpFi = new Map(packages.map((p, i) => [p, files.length + i]));
+const tpCtxId = 'c:' + TP_CTX;
+if (packages.length) {
+  nodes[tpCtxId] = { id: tpCtxId, kind: 'context', label: TP_CTX, title: TP_CTX + ' — external references', colour: TP_CTX_COLOUR, ctx: TP_CTX, parent: null, children: [], depth: 0, tp: true };
+  roots.push(tpCtxId);
+  for (const pkg of packages) {
+    const nid = 'n:' + pkg, fi = tpFi.get(pkg), fid = 'f:' + fi;
+    nodes[nid] = { id: nid, kind: 'namespace', label: pkg, title: pkg, colour: TP_NODE_COLOUR, ctx: TP_CTX, parent: tpCtxId, children: [fid], depth: 1, tp: true };
+    nodes[tpCtxId].children.push(nid);
+    nodes[fid] = { id: fid, kind: 'file', label: pkg, title: pkg, colour: TP_NODE_COLOUR, ctx: TP_CTX, parent: nid, children: [], depth: 2, fi, tp: true };
+  }
+  contexts.push({ name: TP_CTX, colour: TP_CTX_COLOUR });
+}
+const tpEdgeIdx = thirdParty.edges.map(([f, pkg]) => [fIndex.get(f), tpFi.get(pkg)]);
+
+const payload = { nodes, roots, edges: [...edgeIdx, ...tpEdgeIdx], filePaths: [...files, ...packages], fileComp, cycleComps, reachPairs, contexts, thirdPartyCtxId: packages.length ? tpCtxId : null, fileCount: files.length, edgeCount: edges.length, tpCount: packages.length };
 
 // ---- assemble the single HTML file ----
 const CSS = `
@@ -230,6 +251,7 @@ const html = `<!doctype html>
   <div class="seg" id="xpand"><button data-act="expand">Expand all</button><button data-act="collapse">Collapse all</button></div>
   <div class="seg" data-ctl="order"><button data-val="tri">Triangular</button><button data-val="alpha">Alphabetical</button></div>
   <div class="seg" data-ctl="mode"><button data-val="direct">Direct</button><button data-val="indirect">+ Indirect</button></div>
+  <div class="seg" data-ctl="tp"><button data-val="show">3rd-party</button><button data-val="hide">hide</button></div>
   <div class="legend">
     <span><i style="background:#3b82f6"></i>row→col depends</span>
     <span><i style="background:#16a34a"></i>col→row depends</span>
