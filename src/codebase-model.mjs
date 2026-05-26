@@ -4,9 +4,9 @@
 // files into namespaces inside bounded contexts, and runs Tarjan SCC at all
 // three levels (file / namespace / context). Non-relative imports that don't
 // resolve to a scanned file (npm packages, etc.) are collected separately as
-// THIRD-PARTY references (consumed only by the DSM). Pure Node built-ins — NO
-// Graphviz. Imported by both graph.mjs (SVG) and dsm.mjs (matrix) so the two
-// tools share ONE definition of "the codebase" and never drift.
+// THIRD-PARTY references (consumed only by the matrix tab). Pure Node built-ins.
+// Imported by dsm.mjs (the combined Matrix + Graph viewer) so both renderers and
+// the CLI share ONE definition of "the codebase" and never drift.
 //
 // `buildModel(config)` derives contexts (top-level dirs), source roots (each
 // context's `src/`, else itself) and namespaces (first segment below the source
@@ -82,7 +82,7 @@ export function buildModel(config) {
     }
   }
   for (const c of contextDirs) walk(join(root, srcRootOf.get(c)), c, srcRootOf.get(c));
-  files.sort(); // deterministic order → stable SVG + clean matrix/report diffs
+  files.sort(); // deterministic order → clean matrix/graph diffs across runs
   const fileSet = new Set(files);
 
   // ---- cross-context path aliases, auto-read from each context's tsconfig ----
@@ -179,8 +179,8 @@ export function buildModel(config) {
   const ctxColour = (n) => ctxColourMap.get(n) ?? '#ffffff';
   const groupOf = (f) => fileNs.get(f) ?? 'other';
   const colourOf = (g) => nsColourMap.get(g) ?? '#ffffff';
-  // [_, name, colour] tuples in sorted context order — graph.mjs / dsm.mjs read name (+colour).
-  const CONTEXTS = usedCtx.map((c) => [c, c, ctxColourMap.get(c)]);
+  // `usedCtx` (sorted, deduped context names) is the deterministic context order
+  // the matrix uses to tint + legend bounded contexts; exposed as `contextOrder`.
 
   // ---- build edges (file → file import dependencies) ----
   // Whole-statement type-only imports/exports (`import type … from`,
@@ -201,8 +201,8 @@ export function buildModel(config) {
   }
   // third-party reference edges (file → external package). Collected for the DSM
   // only: they never enter `edges`/SCC, so first-party cycle analysis and the
-  // namespace SVG stay first-party. Unlike internal edges, type-only imports
-  // DO count here (a `import type … from 'pkg'` is still a real reference).
+  // graph stay first-party. Unlike internal edges, type-only imports DO count
+  // here (a `import type … from 'pkg'` is still a real reference).
   const tpEdges = [];
   const tpSeen = new Set();
   const tpPkgs = new Set();
@@ -257,21 +257,15 @@ export function buildModel(config) {
   for (const [a, b] of edges) { const ca = contextOf(a), cb = contextOf(b); if (ca !== cb) cAdj.get(ca).add(cb); }
   const ctxScc = sccOf(allCtx, new Map([...cAdj].map(([c, s]) => [c, [...s]])));
 
-  // ---- group bookkeeping (used by the namespace SVG, the report, and the matrix) ----
+  // ---- group bookkeeping (namespace → its files; consumed by the matrix payload) ----
   const byGroup = new Map();
   for (const f of files) { if (!byGroup.has(groupOf(f))) byGroup.set(groupOf(f), []); byGroup.get(groupOf(f)).push(f); }
-  const groupsByCtx = new Map();
-  for (const g of byGroup.keys()) {
-    const ctx = contextOf(byGroup.get(g)[0]);
-    if (!groupsByCtx.has(ctx)) groupsByCtx.set(ctx, []);
-    groupsByCtx.get(ctx).push(g);
-  }
 
   return {
     files, edges,
     fileScc, groupScc, ctxScc,
-    allGroups, allCtx, gAdj, byGroup, groupsByCtx,
-    contextOf, ctxColour, groupOf, colourOf, CONTEXTS,
+    allGroups, allCtx, byGroup,
+    contextOf, ctxColour, groupOf, colourOf, contextOrder: usedCtx,
     thirdParty: { packages: [...tpPkgs].sort(), edges: tpEdges },
     typeXctxEdges,
   };

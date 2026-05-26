@@ -25,102 +25,80 @@ import { buildModel } from './codebase-model.mjs';
 
 const config = loadConfig();
 const {
-  files, edges, allCtx, allGroups, byGroup, CONTEXTS,
+  files, edges, allCtx, allGroups, byGroup, contextOrder,
   contextOf, ctxColour, groupOf, colourOf,
   fileScc, groupScc, ctxScc, thirdParty, typeXctxEdges,
 } = buildModel(config);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-// ---- build one level's matrix payload ----
-function buildLevel(name, nodes, nodeOf, scc, colourFor, labelFor, titleFor, ctxFor) {
+// ---- dependency-first ("triangular") sibling order for one level ----
+// Orders the level's nodes dependencies-first via the SCC condensation, so an
+// acyclic level is purely triangular and every cycle stays a contiguous block;
+// then re-partitions by bounded context (the context graph is acyclic) so each
+// context is one contiguous dependency-first run with its internal triangular
+// order preserved — NDepend's "group by assembly". Returns indices into `nodes`.
+// This ordering is all that's consumed downstream: the matrix cells, colours and
+// cycle outlines are aggregated client-side from the raw file edges.
+function triOrder(nodes, nodeOf, scc, labelFor, ctxFor) {
   const N = nodes.length;
   const pos = new Map(nodes.map((n, i) => [n, i]));
+  const label = nodes.map(labelFor);
+  const ctx = nodes.map(ctxFor);
 
-  // weighted cells (i depends on j) + the realizing file→file imports; diagonal = intra count
-  const cellMap = new Map();
-  const selfW = new Array(N).fill(0);
+  // position adjacency (i depends on j), self-edges dropped
+  const adj = Array.from({ length: N }, () => new Set());
   for (const [a, b] of edges) {
     const i = pos.get(nodeOf(a)), j = pos.get(nodeOf(b));
-    if (i === undefined || j === undefined) continue;
-    if (i === j) { selfW[i]++; continue; }
-    const k = i + '_' + j;
-    let c = cellMap.get(k);
-    if (!c) { c = { i, j, w: 0, edges: [] }; cellMap.set(k, c); }
-    c.w++; c.edges.push(a + '  →  ' + b);
-  }
-  const cells = [...cellMap.values()];
-
-  const nodeObjs = nodes.map((n, i) => ({
-    label: labelFor(n), title: titleFor(n), colour: colourFor(n),
-    ctx: ctxFor(n), comp: scc.id.get(n), cycle: scc.size(n) > 1, self: selfW[i],
-  }));
-
-  // adjacency over positions (for closure + condensation)
-  const adj = Array.from({ length: N }, () => new Set());
-  for (const c of cells) adj[c.i].add(c.j);
-
-  // transitive closure → indirect-only pairs (i reaches j without a direct cell)
-  const reach = [];
-  for (let i = 0; i < N; i++) {
-    const seen = new Set(); const st = [...adj[i]];
-    while (st.length) { const x = st.pop(); if (seen.has(x)) continue; seen.add(x); for (const y of adj[x]) if (!seen.has(y)) st.push(y); }
-    for (const j of seen) if (j !== i && !adj[i].has(j)) reach.push([i, j]);
+    if (i === undefined || j === undefined || i === j) continue;
+    adj[i].add(j);
   }
 
-  // triangular order: condensation DFS post-order = dependencies-first; SCC
-  // members stay contiguous so any cycle becomes a single off-diagonal block.
+  // condensation DFS post-order = dependencies-first; SCC members stay contiguous
+  // so any cycle becomes a single off-diagonal block.
   const compId = (i) => scc.id.get(nodes[i]);
   const ncomp = scc.comps.length;
   const cadj = Array.from({ length: ncomp }, () => new Set());
   for (let i = 0; i < N; i++) for (const j of adj[i]) { const a = compId(i), b = compId(j); if (a !== b) cadj[a].add(b); }
   const compMin = new Array(ncomp).fill(null);
-  for (let i = 0; i < N; i++) { const c = compId(i), lbl = nodeObjs[i].label; if (compMin[c] === null || lbl < compMin[c]) compMin[c] = lbl; }
+  for (let i = 0; i < N; i++) { const c = compId(i); if (compMin[c] === null || label[i] < compMin[c]) compMin[c] = label[i]; }
   const byLabel = (a, b) => (compMin[a] ?? '').localeCompare(compMin[b] ?? '');
   const visited = new Set(); const post = [];
   const dfs = (c) => { visited.add(c); for (const d of [...cadj[c]].sort(byLabel)) if (!visited.has(d)) dfs(d); post.push(c); };
   for (const c of [...Array(ncomp).keys()].sort(byLabel)) if (!visited.has(c)) dfs(c);
   const members = Array.from({ length: ncomp }, () => []);
   for (let i = 0; i < N; i++) members[compId(i)].push(i);
-  for (const m of members) m.sort((a, b) => nodeObjs[a].label.localeCompare(nodeObjs[b].label));
+  for (const m of members) m.sort((a, b) => label[a].localeCompare(label[b]));
   const triGlobal = [];
   for (const c of post) triGlobal.push(...members[c]);
 
-  // context-major: keep each bounded context as one contiguous block (ordered
-  // dependencies-first, like NDepend grouping by assembly) while preserving the
-  // triangular SCC order *within* each context. Context graph is acyclic, so a
-  // post-order DFS gives a dependency-first context sequence; a stable partition
-  // of the global triangular order by that sequence keeps SCC blocks contiguous.
-  const ctxAdj = new Map([...new Set(nodeObjs.map((o) => o.ctx))].map((c) => [c, new Set()]));
-  for (const cell of cells) { const ca = nodeObjs[cell.i].ctx, cb = nodeObjs[cell.j].ctx; if (ca !== cb) ctxAdj.get(ca).add(cb); }
+  // context-major: a stable partition of the triangular order by a dependency-
+  // first context sequence keeps each context contiguous and SCC blocks intact.
+  const ctxAdj = new Map([...new Set(ctx)].map((c) => [c, new Set()]));
+  for (let i = 0; i < N; i++) for (const j of adj[i]) { if (ctx[i] !== ctx[j]) ctxAdj.get(ctx[i]).add(ctx[j]); }
   const cvis = new Set(); const cpost = [];
   const cdfs = (c) => { cvis.add(c); for (const d of [...ctxAdj.get(c)].sort()) if (!cvis.has(d)) cdfs(d); cpost.push(c); };
   for (const c of [...ctxAdj.keys()].sort()) if (!cvis.has(c)) cdfs(c);
-  const orderTri = [];
-  for (const c of cpost) for (const i of triGlobal) if (nodeObjs[i].ctx === c) orderTri.push(i);
-
-  const orderAlpha = [...Array(N).keys()].sort((a, b) => nodeObjs[a].label.localeCompare(nodeObjs[b].label));
-  const cycleCount = scc.comps.filter((c) => c.length > 1).length;
-  return { name, nodes: nodeObjs, cells, reach, orderTri, orderAlpha, cycleCount };
+  const order = [];
+  for (const c of cpost) for (const i of triGlobal) if (ctx[i] === c) order.push(i);
+  return order;
 }
 
 const fileLabel = (f) => f.split('/').slice(-2).join('/');
-const levels = {
-  context: buildLevel('Bounded contexts', allCtx, contextOf, ctxScc, ctxColour, (n) => n, (n) => n, (n) => n),
-  namespace: buildLevel('Namespaces', allGroups, groupOf, groupScc, colourOf, (n) => n, (n) => n, (g) => contextOf(byGroup.get(g)[0])),
-  file: buildLevel('Files', files, (f) => f, fileScc, (f) => colourOf(groupOf(f)), fileLabel, (f) => f, contextOf),
-};
-// bounded-context colour key (CONTEXTS order, only those that actually appear) —
+const ctxOrderIdx = triOrder(allCtx, contextOf, ctxScc, (n) => n, (n) => n);
+const nsOrderIdx = triOrder(allGroups, groupOf, groupScc, (n) => n, (g) => contextOf(byGroup.get(g)[0]));
+const fileOrderIdx = triOrder(files, (f) => f, fileScc, fileLabel, contextOf);
+// bounded-context colour key (sorted context order, only those that appear) —
 // the row/column header tint + legend that groups the matrix by context.
-const contexts = CONTEXTS.map(([, name]) => name).filter((n) => allCtx.includes(n)).map((name) => ({ name, colour: ctxColour(name) }));
+const contexts = contextOrder.filter((n) => allCtx.includes(n)).map((name) => ({ name, colour: ctxColour(name) }));
 
 // ---- assemble the single 3-level tree (context → namespace → file) ----
 // Sibling order = the dependency-first (triangular) order already computed per
 // level; the client expands/collapses this tree and aggregates the file edges.
 const fIndex = new Map(files.map((f, i) => [f, i]));
-const ctxOrder = levels.context.orderTri.map((i) => allCtx[i]);
-const nsOrderAll = levels.namespace.orderTri.map((i) => allGroups[i]);
-const fileOrderAll = levels.file.orderTri.map((i) => files[i]);
+const ctxOrder = ctxOrderIdx.map((i) => allCtx[i]);
+const nsOrderAll = nsOrderIdx.map((i) => allGroups[i]);
+const fileOrderAll = fileOrderIdx.map((i) => files[i]);
 const nsByCtx = new Map(ctxOrder.map((c) => [c, []]));
 for (const ns of nsOrderAll) nsByCtx.get(contextOf(byGroup.get(ns)[0])).push(ns);
 const filesByNs = new Map(nsOrderAll.map((ns) => [ns, []]));

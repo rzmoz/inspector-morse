@@ -21,9 +21,13 @@ interactive tabs — a Dependency Structure **Matrix** and a Cytoscape dependenc
 - `src/codebase-model.mjs` — `buildModel(config)`: the whole analysis. Scans
   `.ts/.tsx`, resolves imports, clusters, runs Tarjan SCC at file/namespace/
   context levels. Shared by both tabs — one definition of "the codebase".
-- `src/dsm.mjs` — assembles the combined HTML: builds the matrix payload + graph
-  payload, inlines `dsm.client.js`, `graph.client.js`, and Cytoscape + fcose from
-  `node_modules`. Writes `output.dsm`.
+- `src/dsm.mjs` — assembles the combined HTML. Computes the dependency-first
+  ("triangular") sibling order per level (`triOrder`), then ships a
+  context→namespace→file tree + the raw file-indexed edge list (matrix) and the
+  graph payload; the matrix *cells/colours/cycles* are aggregated client-side
+  from those edges, so the server side stays ordering + plumbing only. Inlines
+  `dsm.client.js`, `graph.client.js`, and Cytoscape + fcose from `node_modules`.
+  Writes `output.dsm`.
 - `src/dsm.client.js` — **Matrix** renderer (vanilla DOM).
 - `src/graph.client.js` — **Graph** renderer (Cytoscape).
 
@@ -44,8 +48,8 @@ interactive tabs — a Dependency Structure **Matrix** and a Cytoscape dependenc
 - **Third-party** = non-relative imports resolving to neither a relative file nor
   a tsconfig path-alias, excluding `node:` builtins. One node per package root;
   type-only counts. Matrix only (purple, row axis); absent from the graph.
-- Output is **deterministic** — sort node/edge/context lists so SVG/HTML/report
-  diffs stay clean. Preserve this when editing.
+- Output is **deterministic** — sort node/edge/context lists so the emitted HTML
+  and console report diff cleanly across runs. Preserve this when editing.
 
 ## Matrix (`dsm.client.js`)
 - Hierarchical DSM: context → namespace → file via expand/collapse. Cell `(r,c)`
