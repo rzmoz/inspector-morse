@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>:root{--rowh:320px;--colh:170px}${CSS}</style></head>
+<body>
+<header>
+  <h1>${title}</h1>
+  <div class="tabs"><button data-tab="matrix" class="on">Matrix</button><button data-tab="graph">Graph</button></div>
+  <div class="meta" id="meta"></div>
+</header>
+<div id="matrixpane">
+  <div class="controls">
+    <div class="seg" id="xpand"><button data-act="expand">Expand all</button><button data-act="collapse">Collapse all</button></div>
+    <div class="seg" data-ctl="order"><button data-val="tri">Triangular</button><button data-val="alpha">Alphabetical</button></div>
+    <div class="seg" data-ctl="mode"><button data-val="direct">Direct</button><button data-val="indirect">+ Indirect</button></div>
+    <div class="seg" data-ctl="tp"><button data-val="show">3rd-party</button><button data-val="hide">hide</button></div>
+    <div class="legend">
+      <span><i style="background:#3b82f6"></i>row→col depends</span>
+      <span><i style="background:#16a34a"></i>col→row depends</span>
+      <span><i style="background:#111"></i>mutual</span>
+      <span><i style="background:#fff;box-shadow:inset 0 0 0 2px #dc2626"></i>cycle</span>
+      <span><i style="background:#bfdbfe"></i>indirect</span>
+    </div>
+  </div>
+  <div class="ctxbar" id="ctxlegend"></div>
+  <div class="help" id="help"></div>
+  <div class="stage">
+    <div class="grid" id="grid"></div>
+    <aside class="panel empty" id="panel"><div id="pbody"></div></aside>
+  </div>
+</div>
+<div id="graphpane" style="display:none">
+  <div class="controls">
+    <div class="seg"><button data-g="expand">Expand all</button><button data-g="collapse">Collapse all</button></div>
+    <button class="gbtn" data-g="fit">Fit</button>
+    <button class="gbtn" data-g="relayout">Re-layout</button>
+    <div class="legend">
+      <span><i style="background:#7b2ff7"></i>cross-context</span>
+      <span><i style="background:#ff8c00"></i>namespace cycle</span>
+      <span><i style="background:#3b82f6"></i>forward</span>
+      <span><i style="background:#b8c0cc"></i>intra (file)</span>
+      <span><i style="background:#dd0000"></i>file cycle</span>
+    </div>
+  </div>
+  <div id="cy"></div>
+</div>
+<script>${LIBS}</script>
+<script>const DATA=${JSON.stringify(payload)};</script>
+<script>${CLIENT}</script>
+<script>${GRAPH_CLIENT}</script>
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.tabs button');
+  const mp = document.getElementById('matrixpane'), gp = document.getElementById('graphpane');
+  tabs.forEach((b) => b.addEventListener('click', () => {
+    tabs.forEach((x) => x.classList.toggle('on', x === b));
+    const t = b.dataset.tab;
+    mp.style.display = t === 'matrix' ? '' : 'none';
+    gp.style.display = t === 'graph' ? '' : 'none';
+    if (t === 'graph' && window.IMGraph) { IMGraph.init(document.getElementById('cy')); IMGraph.resize(); IMGraph.fit(); }
+  }));
+  document.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => {
+    if (!window.IMGraph) return;
+    ({ expand: IMGraph.expandAll, collapse: IMGraph.collapseAll, fit: IMGraph.fit, relayout: IMGraph.relayout }[b.dataset.g] || (() => {}))();
+  }));
+})();
+</script>
+</body></html>

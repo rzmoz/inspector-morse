@@ -21,13 +21,16 @@ at build, so they are not runtime dependencies and must not form cycles) — but
 type-only imports of *external* packages still count as third-party references
 (see below).
 
+The tool is a single **.NET** (net10.0) CLI; the browser renderers and Cytoscape
++ fcose are embedded into the executable and inlined into the emitted HTML.
+
 ## Usage
 
 There is **no config file** — every setting comes from CLI args and built-in
 defaults.
 
 ```
-node /path/to/inspector-morse/bin/cli.mjs <node|dotnet> --code-root <dir> [-h|--help]
+inspector-morse <node|dotnet> --code-root <dir> [-h|--help]
 ```
 
 | Arg | Meaning |
@@ -37,14 +40,29 @@ node /path/to/inspector-morse/bin/cli.mjs <node|dotnet> --code-root <dir> [-h|--
 | `-h`, `--help` | print usage and exit. |
 
 The output `codebase-dsm.html` is always written into the `--code-root` directory,
-and the page title is that directory's name. (If linked via `npm link`, the
-`inspector-morse` bin runs anywhere.)
+and the page title is that directory's name.
 
 Example:
 
 ```
 inspector-morse node --code-root C:\Projects\battlebuddy
 ```
+
+### Build & run
+
+Requires the .NET 10 SDK; the project lives in `dotnet/`.
+
+```
+# local debug
+dotnet run --project dotnet -- node --code-root <dir>
+
+# release: single-file, self-contained, OS-agnostic — pick a runtime identifier
+dotnet publish dotnet -c Release -r win-x64     # or linux-x64, osx-x64, osx-arm64, …
+```
+
+A self-contained publish bundles the .NET runtime plus all assets, so the
+resulting single executable runs with no .NET install, no `node_modules`, and no
+other files alongside it.
 
 ### The `node` ecosystem
 
@@ -94,10 +112,33 @@ row axis — the Graph tab is first-party (incl. cross-context) only.
 
 ## Layout
 
-- `bin/cli.mjs` — CLI entry / dispatch.
-- `src/args.mjs` — CLI argument parsing + built-in defaults (no config file).
-- `src/codebase-model.mjs` — `buildModel(config)`: scan, resolve, cluster, SCC.
-- `src/dsm.mjs` — assembles the combined viewer HTML; inlines the matrix client,
-  the graph client, and Cytoscape + fcose from `node_modules`.
-- `src/dsm.client.js` — browser renderer for the **Matrix** tab.
-- `src/graph.client.js` — browser renderer for the **Graph** tab (Cytoscape).
+All under `dotnet/`. The code is split so it's obvious which parts are generic
+and which are tech-stack-specific: **`Core/`** is ecosystem-agnostic (works for
+any codebase model), **`Node/`** is the only TypeScript/Node-aware code, and the
+root is the generic CLI shell. Adding another ecosystem (e.g. `dotnet`) means
+adding one analyzer under a new folder that produces the same `Core.Model`.
+
+- `Program.cs` — CLI entry + ecosystem dispatch.
+- `Cli.cs` — generic CLI argument parsing (no config file).
+
+**`Core/`** — ecosystem-agnostic:
+
+- `Config.cs` — run config + generic derivation (`Config.For`).
+- `Model.cs` — the shared dependency model (contexts / namespaces / files /
+  edges / per-level SCCs / third-party); the one definition of "the codebase".
+- `Scc.cs` — generic Tarjan SCC + ordered-set / sequence helpers.
+- `PosixPath.cs` — `path.posix`-style normalize / join / dirname.
+- `Viewer.cs` — `Render(model, config)`: turns any `Model` into the viewer HTML;
+  inlines the matrix client, the graph client, and Cytoscape + fcose; payload DTOs.
+
+**`Node/`** — TypeScript/Node ecosystem (the only TS-aware code):
+
+- `NodeAnalyzer.cs` — `Build(config)`: scan, resolve, cluster, SCC → `Core.Model`.
+
+**`assets/`** — embedded, inlined verbatim into the HTML:
+
+- `dsm.client.js` — browser renderer for the **Matrix** tab.
+- `graph.client.js` — browser renderer for the **Graph** tab (Cytoscape).
+- `{cytoscape.min.js, layout-base.js, cose-base.js, cytoscape-fcose.js}` —
+  graph libraries.
+- `{template.css, template.html}` — page CSS + HTML skeleton.

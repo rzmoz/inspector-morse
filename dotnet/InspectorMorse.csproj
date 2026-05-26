@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>inspector-morse</AssemblyName>
+    <RootNamespace>InspectorMorse</RootNamespace>
+    <Deterministic>true</Deterministic>
+    <!-- ICU is required: the triangular ordering mirrors JS localeCompare via
+         culture-aware comparison, so invariant-globalization (ordinal fallback)
+         must stay OFF. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- Release artifact prep: single-file, self-contained, OS-agnostic.
+       RID is supplied at publish time (e.g. `dotnet publish -r win-x64`), so a
+       plain `dotnet build` / `dotnet run` for local debug stays framework-
+       dependent and never needs a RID. Not packed/installed here. -->
+  <PropertyGroup>
+    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <!-- Inlined verbatim into the emitted codebase-dsm.html (the matrix + graph
+       renderers, Cytoscape + fcose, and the CSS/HTML template extracted from the
+       original src/). Embedding them is what makes the exe self-contained with
+       no node_modules at runtime. -->
+  <ItemGroup>
+    <None Remove="assets\**" />
+    <EmbeddedResource Include="assets\dsm.client.js"><LogicalName>dsm.client.js</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\graph.client.js"><LogicalName>graph.client.js</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\cytoscape.min.js"><LogicalName>cytoscape.min.js</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\layout-base.js"><LogicalName>layout-base.js</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\cose-base.js"><LogicalName>cose-base.js</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\cytoscape-fcose.js"><LogicalName>cytoscape-fcose.js</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\template.css"><LogicalName>template.css</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="assets\template.html"><LogicalName>template.html</LogicalName></EmbeddedResource>
+  </ItemGroup>
+
+</Project>
