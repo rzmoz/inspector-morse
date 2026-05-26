@@ -1,16 +1,15 @@
 using System.Text;
 using InspectorMorse;
 using InspectorMorse.Core;
-using InspectorMorse.Node;
-using InspectorMorse.Dotnet;
+using InspectorMorse.Analyzer;
 
 // inspector-morse CLI entry + ecosystem dispatch. Inspects a codebase and writes
 // a self-contained codebase-dsm.html (Matrix + Graph tabs) into the target root.
 //
 //   inspector-morse <node|dotnet> --code-root <dir> [-h|--help]
 //
-// The Core/ assembly is ecosystem-agnostic (Model + Viewer); each ecosystem
-// (Node today, .NET later) plugs in its own analyzer that produces a Core.Model.
+// Core/ is ecosystem-agnostic (Model + Viewer); each ecosystem analyzer in
+// Analyzer/ (Node + .NET) plugs in by producing a Core.Model.
 // No config file: every setting comes from CLI args + built-in defaults.
 
 // Glyphs in the report (✓ • —) need a UTF-8 console; harmless if it can't be set.

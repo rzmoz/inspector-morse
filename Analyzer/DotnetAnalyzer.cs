@@ -7,7 +7,7 @@ using System.Reflection.PortableExecutable;
 using System.Xml.Linq;
 using InspectorMorse.Core;
 
-namespace InspectorMorse.Dotnet;
+namespace InspectorMorse.Analyzer;
 
 // .NET ecosystem analyzer — reads the target's COMPILED assemblies (BCL-only,
 // via System.Reflection.Metadata) and produces the ecosystem-agnostic

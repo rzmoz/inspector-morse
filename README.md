@@ -122,9 +122,9 @@ row axis — the Graph tab is first-party (incl. cross-context) only.
 
 All in the repository root. The code is split so it's obvious which parts are generic
 and which are tech-stack-specific: **`Core/`** is ecosystem-agnostic (works for
-any codebase model), **`Node/`** and **`Dotnet/`** are the per-ecosystem analyzers,
-and the root is the generic CLI shell. Adding another ecosystem means adding one
-analyzer under a new folder that produces the same `Core.Model`.
+any codebase model), **`Analyzer/`** holds the per-ecosystem analyzers, and the
+root is the generic CLI shell. Adding another ecosystem means adding one analyzer
+to `Analyzer/` that produces the same `Core.Model`.
 
 - `Program.cs` — CLI entry + ecosystem dispatch.
 - `Cli.cs` — generic CLI argument parsing (no config file).
@@ -142,12 +142,9 @@ analyzer under a new folder that produces the same `Core.Model`.
 - `Viewer.cs` — `Render(model, config)`: turns any `Model` into the viewer HTML;
   inlines the matrix client, the graph client, and Cytoscape + fcose; payload DTOs.
 
-**`Node/`** — TypeScript/Node ecosystem (source):
+**`Analyzer/`** — the per-ecosystem analyzers (namespace `InspectorMorse.Analyzer`):
 
 - `NodeAnalyzer.cs` — `Build(config)`: scan `.ts/.tsx`, resolve imports → `Core.Model`.
-
-**`Dotnet/`** — .NET ecosystem (compiled assemblies):
-
 - `DotnetAnalyzer.cs` — `Build(config)`: read built assemblies via
   `System.Reflection.Metadata` (structural + IL-body type edges) → `Core.Model`.
 

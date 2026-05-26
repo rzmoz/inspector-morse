@@ -8,9 +8,9 @@ straight from `file://`. The tool itself is a single **.NET** (net10.0) CLI livi
 at the repository root; the two client renderers and Cytoscape + fcose are embedded as
 resources and inlined verbatim into the HTML. The code splits cleanly into an
 **ecosystem-agnostic `Core/`** (the shared model + the viewer) and per-ecosystem
-analyzers under **`Node/`** (TypeScript source) and **`Dotnet/`** (compiled .NET
-assemblies) — folders + names signal which is which; each ecosystem just adds an
-analyzer that produces the shared model.
+analyzers in **`Analyzer/`** (`NodeAnalyzer` for TypeScript source, `DotnetAnalyzer`
+for compiled .NET assemblies) — class names signal which is which; each ecosystem
+just adds an analyzer that produces the shared model.
 
 ## Run
 - Debug: `dotnet run -- <node|dotnet> --code-root <dir> [-h|--help]`
@@ -23,9 +23,8 @@ analyzer that produces the shared model.
   OS-agnostic exe (`<rid>` = win-x64/linux-x64/osx-arm64/…). Not packed/installed.
 
 ## Files (all in the repo root)
-**`Core/`** is ecosystem-agnostic (works for any codebase model); **`Node/`** and
-**`Dotnet/`** are the tech-stack-specific analyzers. The root holds the generic
-CLI shell.
+**`Core/`** is ecosystem-agnostic (works for any codebase model); **`Analyzer/`**
+holds the tech-stack-specific analyzers. The root holds the generic CLI shell.
 
 - `Program.cs` — entry + ecosystem dispatch: validates `node|dotnet` + `--code-root`,
   handles `--help`, then runs the matching ecosystem analyzer and renders.
@@ -54,12 +53,10 @@ CLI shell.
   template with the inlined renderers + Cytoscape + fcose, writes the viewer, prints
   the report. Also defines the payload DTOs.
 
-### `Node/` — TypeScript/Node ecosystem
+### `Analyzer/` — the per-ecosystem analyzers (namespace `InspectorMorse.Analyzer`)
 - `NodeAnalyzer.cs` — `NodeAnalyzer.Build(config)`: scans `.ts/.tsx`, resolves
   relative + tsconfig-path imports, collects value/type/third-party refs, then hands
   the raw bits to `ModelBuilder`. `DefaultExcludes` = node_modules/dist/build.
-
-### `Dotnet/` — .NET ecosystem (compiled assemblies)
 - `DotnetAnalyzer.cs` — `DotnetAnalyzer.Build(config)`: NDepend-style analysis of the
   target's **built** assemblies via `System.Reflection.Metadata` (BCL-only). Discovers
   first-party assemblies from the `.csproj` layout + `bin` output, then per type
