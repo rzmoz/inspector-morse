@@ -1,4 +1,4 @@
-namespace InspectorMorse.Core;
+namespace InspectorGadget.Core;
 
 // Ecosystem-agnostic run config. Every ecosystem produces one of these; only the
 // `Exclude` list is ecosystem-supplied (see Node/NodeAnalyzer.DefaultExcludes).

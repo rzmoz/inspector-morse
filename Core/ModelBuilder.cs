@@ -1,4 +1,4 @@
-namespace InspectorMorse.Core;
+namespace InspectorGadget.Core;
 
 // Ecosystem-agnostic finalize step. An analyzer's only job is to produce the raw
 // leaf nodes (files/types), their context+namespace tags, the dependency edges,

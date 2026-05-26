@@ -1,4 +1,4 @@
-# inspector-morse
+# inspector-gadget
 
 Tooling for code inspection on various tech-stacks — relevant in the AI era where
 manual coding is almost absent but understanding of code is ever as relevant.
@@ -30,7 +30,7 @@ There is **no config file** — every setting comes from CLI args and built-in
 defaults.
 
 ```
-inspector-morse <node|dotnet> --code-root <dir> [-h|--help]
+inspector-gadget <node|dotnet> --code-root <dir> [-h|--help]
 ```
 
 | Arg | Meaning |
@@ -45,7 +45,7 @@ and the page title is that directory's name.
 Example:
 
 ```
-inspector-morse node --code-root C:\Projects\battlebuddy
+inspector-gadget node --code-root C:\Projects\battlebuddy
 ```
 
 ### Build & run
@@ -142,7 +142,7 @@ to `Analyzer/` that produces the same `Core.Model`.
 - `Viewer.cs` — `Render(model, config)`: turns any `Model` into the viewer HTML;
   inlines the matrix client, the graph client, and Cytoscape + fcose; payload DTOs.
 
-**`Analyzer/`** — the per-ecosystem analyzers (namespace `InspectorMorse.Analyzer`):
+**`Analyzer/`** — the per-ecosystem analyzers (namespace `InspectorGadget.Analyzer`):
 
 - `NodeAnalyzer.cs` — `Build(config)`: scan `.ts/.tsx`, resolve imports → `Core.Model`.
 - `DotnetAnalyzer.cs` — `Build(config)`: read built assemblies via

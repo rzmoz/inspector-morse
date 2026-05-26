@@ -1,9 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using InspectorMorse.Core;
+using InspectorGadget.Core;
 
-namespace InspectorMorse.Analyzer;
+namespace InspectorGadget.Analyzer;
 
 // Node / TypeScript ecosystem analyzer — the only TypeScript-aware code in the
 // tool. Walks every .ts/.tsx under the derived source roots (incl. .d.ts),

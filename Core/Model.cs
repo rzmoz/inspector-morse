@@ -1,4 +1,4 @@
-namespace InspectorMorse.Core;
+namespace InspectorGadget.Core;
 
 // The ecosystem-agnostic dependency model — the single shared definition of "the
 // codebase" that every analyzer (Node today, .NET later) produces and that the

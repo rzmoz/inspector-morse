@@ -1,4 +1,4 @@
-namespace InspectorMorse;
+namespace InspectorGadget;
 
 // Generic CLI parsing — ecosystem-agnostic. Parses the chosen ecosystem command
 // (node|dotnet), the help flag, and the raw --code-root; validation + dispatch
@@ -6,11 +6,11 @@ namespace InspectorMorse;
 internal sealed record Cli(string? Command, bool Help, string? Root)
 {
     public const string Usage =
-        "usage: inspector-morse <node|dotnet> --code-root <dir> [-h|--help]\n" +
+        "usage: inspector-gadget <node|dotnet> --code-root <dir> [-h|--help]\n" +
         "\n" +
         "  <node|dotnet>   target ecosystem to inspect\n" +
-        "                    node    TypeScript/Node project (.d.ts always included)\n" +
-        "                    dotnet  not implemented\n" +
+        "                    node    TypeScript/Node project source (.d.ts always included)\n" +
+        "                    dotnet  built .NET assemblies (NDepend-style)\n" +
         "  --code-root <dir>    project root to scan (required)\n" +
         "  -h, --help      show this help and exit\n" +
         "\n" +

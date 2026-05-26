@@ -1,12 +1,12 @@
 using System.Text;
-using InspectorMorse;
-using InspectorMorse.Core;
-using InspectorMorse.Analyzer;
+using InspectorGadget;
+using InspectorGadget.Core;
+using InspectorGadget.Analyzer;
 
-// inspector-morse CLI entry + ecosystem dispatch. Inspects a codebase and writes
+// inspector-gadget CLI entry + ecosystem dispatch. Inspects a codebase and writes
 // a self-contained codebase-dsm.html (Matrix + Graph tabs) into the target root.
 //
-//   inspector-morse <node|dotnet> --code-root <dir> [-h|--help]
+//   inspector-gadget <node|dotnet> --code-root <dir> [-h|--help]
 //
 // Core/ is ecosystem-agnostic (Model + Viewer); each ecosystem analyzer in
 // Analyzer/ (Node + .NET) plugs in by producing a Core.Model.

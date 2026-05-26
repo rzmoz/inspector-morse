@@ -1,4 +1,4 @@
-namespace InspectorMorse.Core;
+namespace InspectorGadget.Core;
 
 // Faithful port of Node's `path.posix` normalize/join/dirname. Analyzers key
 // everything by repo-root-relative POSIX paths and resolve with these, so the

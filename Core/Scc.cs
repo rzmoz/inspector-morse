@@ -1,4 +1,4 @@
-namespace InspectorMorse.Core;
+namespace InspectorGadget.Core;
 
 // Generic graph/sequence helpers — ecosystem-agnostic.
 

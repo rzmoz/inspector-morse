@@ -1,4 +1,4 @@
-# inspector-morse — codebase guide
+# inspector-gadget — codebase guide
 
 Config-free codebase **dependency viewer**. Scans a target project (passed via
 `--code-root`) and emits one self-contained `codebase-dsm.html` (into that root)
@@ -14,7 +14,7 @@ just adds an analyzer that produces the shared model.
 
 ## Run
 - Debug: `dotnet run -- <node|dotnet> --code-root <dir> [-h|--help]`
-  (or the built exe `bin/Debug/net10.0/inspector-morse.exe`).
+  (or the built exe `bin/Debug/net10.0/inspector-gadget.exe`).
 - `node` scans a TS/Node project's source; `dotnet` scans a project's **built**
   assemblies (NDepend-style: assembly → namespace → type, via System.Reflection.Metadata).
   `--code-root` is required (no default); the viewer is written into it and titled by its dir name.
@@ -53,7 +53,7 @@ holds the tech-stack-specific analyzers. The root holds the generic CLI shell.
   template with the inlined renderers + Cytoscape + fcose, writes the viewer, prints
   the report. Also defines the payload DTOs.
 
-### `Analyzer/` — the per-ecosystem analyzers (namespace `InspectorMorse.Analyzer`)
+### `Analyzer/` — the per-ecosystem analyzers (namespace `InspectorGadget.Analyzer`)
 - `NodeAnalyzer.cs` — `NodeAnalyzer.Build(config)`: scans `.ts/.tsx`, resolves
   relative + tsconfig-path imports, collects value/type/third-party refs, then hands
   the raw bits to `ModelBuilder`. `DefaultExcludes` = node_modules/dist/build.

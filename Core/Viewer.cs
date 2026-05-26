@@ -4,7 +4,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace InspectorMorse.Core;
+namespace InspectorGadget.Core;
 
 // Ecosystem-agnostic viewer: renders any Model into the self-contained
 // codebase-dsm.html (Matrix + Graph tabs) and prints the directionality report.

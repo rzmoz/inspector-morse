@@ -5,8 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>inspector-morse</AssemblyName>
-    <RootNamespace>InspectorMorse</RootNamespace>
+    <AssemblyName>inspector-gadget</AssemblyName>
+    <RootNamespace>InspectorGadget</RootNamespace>
     <Deterministic>true</Deterministic>
     <!-- ICU is required: the triangular ordering mirrors JS localeCompare via
          culture-aware comparison, so invariant-globalization (ordinal fallback)
