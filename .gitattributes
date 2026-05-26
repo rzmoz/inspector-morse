@@ -1,0 +1,4 @@
+# Consistent, OS-agnostic line endings: the repo stores LF and every checkout
+# keeps LF on all platforms. This keeps the embedded assets (and therefore the
+# emitted codebase-dsm.html) byte-stable regardless of where the tool is built.
+* text=auto eol=lf
