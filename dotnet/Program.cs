@@ -2,6 +2,7 @@ using System.Text;
 using InspectorMorse;
 using InspectorMorse.Core;
 using InspectorMorse.Node;
+using InspectorMorse.Dotnet;
 
 // inspector-morse CLI entry + ecosystem dispatch. Inspects a codebase and writes
 // a self-contained codebase-dsm.html (Matrix + Graph tabs) into the target root.
@@ -25,10 +26,10 @@ catch (Exception e) { Err($"error: {e.Message}\n\n{Cli.Usage}"); return 1; }
 if (cli.Help) { Std(Cli.Usage); return 0; }
 if (cli.Command is null) { Err($"error: missing target ecosystem (node|dotnet)\n\n{Cli.Usage}"); return 1; }
 if (cli.Command is not ("node" or "dotnet")) { Err($"error: unknown target \"{cli.Command}\" (expected node|dotnet)\n\n{Cli.Usage}"); return 1; }
-if (cli.Command == "dotnet") { Err("error: dotnet inspection is not implemented"); return 1; }
 if (cli.Root is null) { Err($"error: --code-root <dir> is required\n\n{Cli.Usage}"); return 1; }
 
 string root = cli.Root;
+string command = cli.Command;
 int code = 0;
 // The analysis recurses (Tarjan SCC, reachability DFS); run on a large-stack
 // worker so deep dependency chains can't overflow on any platform.
@@ -36,9 +37,19 @@ var worker = new Thread(() =>
 {
     try
     {
-        // node ecosystem: TS analyzer → shared Core.Model → generic renderer.
-        var config = Config.For(root, NodeAnalyzer.DefaultExcludes);
-        var model = NodeAnalyzer.Build(config);
+        // each ecosystem analyzer produces the shared Core.Model; the generic
+        // renderer turns it into the viewer.
+        Config config; Model model;
+        if (command == "node")
+        {
+            config = Config.For(root, NodeAnalyzer.DefaultExcludes);
+            model = NodeAnalyzer.Build(config);
+        }
+        else // "dotnet"
+        {
+            config = Config.For(root, DotnetAnalyzer.DefaultExcludes);
+            model = DotnetAnalyzer.Build(config);
+        }
         Viewer.Render(model, config);
     }
     catch (Exception e) { Err($"error: {e.Message}"); code = 1; }

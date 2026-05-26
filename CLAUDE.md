@@ -7,26 +7,28 @@ dependency **Graph**. The emitted HTML has no runtime and no build step; it open
 straight from `file://`. The tool itself is a single **.NET** (net10.0) CLI living
 in `dotnet/`; the two client renderers and Cytoscape + fcose are embedded as
 resources and inlined verbatim into the HTML. The code splits cleanly into an
-**ecosystem-agnostic `Core/`** (the shared model + the viewer) and a
-**TypeScript/Node-specific `Node/`** analyzer — folders + names signal which is
-which, so a future ecosystem (e.g. `dotnet`) just adds another analyzer.
+**ecosystem-agnostic `Core/`** (the shared model + the viewer) and per-ecosystem
+analyzers under **`Node/`** (TypeScript source) and **`Dotnet/`** (compiled .NET
+assemblies) — folders + names signal which is which; each ecosystem just adds an
+analyzer that produces the shared model.
 
 ## Run
 - Debug: `dotnet run --project dotnet -- <node|dotnet> --code-root <dir> [-h|--help]`
   (or the built exe `dotnet/bin/Debug/net10.0/inspector-morse.exe`).
-- `node` scans a TS/Node project; `dotnet` errors (not implemented). `--code-root`
-  is required (no default); the viewer is written into it and titled by its dir name.
+- `node` scans a TS/Node project's source; `dotnet` scans a project's **built**
+  assemblies (NDepend-style: assembly → namespace → type, via System.Reflection.Metadata).
+  `--code-root` is required (no default); the viewer is written into it and titled by its dir name.
 - No config file — all settings are CLI args + built-in defaults (`dotnet/Cli.cs`).
 - Release: `dotnet publish dotnet -c Release -r <rid>` → single-file, self-contained,
   OS-agnostic exe (`<rid>` = win-x64/linux-x64/osx-arm64/…). Not packed/installed.
 
 ## Files (all under `dotnet/`)
-Two halves: **`Core/`** is ecosystem-agnostic (works for any codebase model);
-**`Node/`** is the only TypeScript/Node-aware code. The root holds the generic
+**`Core/`** is ecosystem-agnostic (works for any codebase model); **`Node/`** and
+**`Dotnet/`** are the tech-stack-specific analyzers. The root holds the generic
 CLI shell.
 
 - `Program.cs` — entry + ecosystem dispatch: validates `node|dotnet` + `--code-root`,
-  handles `--help`, then (node) builds the config, runs the analyzer, renders.
+  handles `--help`, then runs the matching ecosystem analyzer and renders.
   The analysis runs on a large-stack worker thread.
 - `Cli.cs` — generic CLI parsing (`Cli.Parse`: command / `--code-root` / `--help`);
   no config file.
@@ -37,6 +39,10 @@ CLI shell.
 - `Model.cs` — the shared dependency model: contexts/namespaces/files, import
   edges, per-level SCCs, third-party refs. The one definition of "the codebase"
   that every analyzer produces and the viewer consumes — knows nothing about TS.
+- `ModelBuilder.cs` — `ModelBuilder.Assemble(...)`: the shared finalize step. An
+  analyzer supplies raw leaf nodes + tags + edges + third-party refs; this computes
+  palette colours, the three Tarjan SCCs, cluster lists and the namespace→files map
+  → a complete `Model`. Both analyzers call it.
 - `Scc.cs` — generic Tarjan SCC + insertion-order-preserving sets + `Seq`.
 - `PosixPath.cs` — faithful `path.posix` normalize/join/dirname, so import
   resolution is identical regardless of the host OS separator.
@@ -48,11 +54,19 @@ CLI shell.
   template with the inlined renderers + Cytoscape + fcose, writes the viewer, prints
   the report. Also defines the payload DTOs.
 
-### `Node/` — TypeScript/Node ecosystem (the only TS-aware code)
+### `Node/` — TypeScript/Node ecosystem
 - `NodeAnalyzer.cs` — `NodeAnalyzer.Build(config)`: scans `.ts/.tsx`, resolves
-  relative + tsconfig-path imports, clusters, runs SCC, collects third-party →
-  produces a `Core.Model`. `DefaultExcludes` = node_modules/dist/build. A future
-  `.NET` ecosystem analyzer would sit beside this and produce the same `Model`.
+  relative + tsconfig-path imports, collects value/type/third-party refs, then hands
+  the raw bits to `ModelBuilder`. `DefaultExcludes` = node_modules/dist/build.
+
+### `Dotnet/` — .NET ecosystem (compiled assemblies)
+- `DotnetAnalyzer.cs` — `DotnetAnalyzer.Build(config)`: NDepend-style analysis of the
+  target's **built** assemblies via `System.Reflection.Metadata` (BCL-only). Discovers
+  first-party assemblies from the `.csproj` layout + `bin` output, then per type
+  collects dependencies from structural metadata **and** decoded method-body IL.
+  context = assembly, namespace = C# namespace, leaf = type; every external assembly
+  (incl. `System.*`) is a third-party ref. The target must be built first. Produces a
+  `Core.Model` via `ModelBuilder`. `DefaultExcludes` = bin/obj/node_modules.
 
 ### `assets/` — embedded resources (generic; inlined verbatim into the HTML)
 - `dsm.client.js` — **Matrix** renderer (vanilla DOM).

@@ -35,7 +35,7 @@ inspector-morse <node|dotnet> --code-root <dir> [-h|--help]
 
 | Arg | Meaning |
 |---|---|
-| `<node\|dotnet>` | target ecosystem (required). `node` scans a TypeScript/Node project; `dotnet` is **not implemented** and errors. |
+| `<node\|dotnet>` | target ecosystem (required). `node` scans a TypeScript/Node project (source); `dotnet` scans a project's **built** .NET assemblies. |
 | `--code-root <dir>` | project root to scan (**required**, no default). |
 | `-h`, `--help` | print usage and exit. |
 
@@ -70,10 +70,18 @@ other files alongside it.
 `build` (and dot-dirs). All `.ts`/`.tsx` are scanned, **including `.d.ts` type
 declarations** — type contracts always participate.
 
-`dotnet` is reserved for a future .NET analyzer; today it exits with a
-"not implemented" error.
+### The `dotnet` ecosystem
 
-### Levels are derived from the layout
+`dotnet` reads the target's **built** assemblies (build the project first, e.g.
+`dotnet build`). It analyzes them NDepend-style with `System.Reflection.Metadata`
+(BCL-only): **context = assembly**, **namespace = C# namespace**, **leaf = type**.
+First-party assemblies are discovered from the `.csproj` layout + `bin` output;
+type→type edges come from both structural metadata (base/interfaces/fields/
+signatures/attributes/generics) and decoded method-body IL. Every referenced
+external assembly — including `System.*`/`Microsoft.*` — is a third-party
+reference. The level conventions below describe the `node` ecosystem.
+
+### Levels are derived from the layout (node)
 
 - **Context** — each immediate child directory of `--code-root`, skipping the
   excluded names and dot-dirs. A context with no scannable `.ts`/`.tsx` simply
@@ -114,9 +122,9 @@ row axis — the Graph tab is first-party (incl. cross-context) only.
 
 All under `dotnet/`. The code is split so it's obvious which parts are generic
 and which are tech-stack-specific: **`Core/`** is ecosystem-agnostic (works for
-any codebase model), **`Node/`** is the only TypeScript/Node-aware code, and the
-root is the generic CLI shell. Adding another ecosystem (e.g. `dotnet`) means
-adding one analyzer under a new folder that produces the same `Core.Model`.
+any codebase model), **`Node/`** and **`Dotnet/`** are the per-ecosystem analyzers,
+and the root is the generic CLI shell. Adding another ecosystem means adding one
+analyzer under a new folder that produces the same `Core.Model`.
 
 - `Program.cs` — CLI entry + ecosystem dispatch.
 - `Cli.cs` — generic CLI argument parsing (no config file).
@@ -126,14 +134,22 @@ adding one analyzer under a new folder that produces the same `Core.Model`.
 - `Config.cs` — run config + generic derivation (`Config.For`).
 - `Model.cs` — the shared dependency model (contexts / namespaces / files /
   edges / per-level SCCs / third-party); the one definition of "the codebase".
+- `ModelBuilder.cs` — `Assemble(...)`: the shared finalize step (palette colours,
+  the three Tarjan SCCs, cluster lists, namespace→files) that turns an analyzer's
+  raw output into a complete `Model`.
 - `Scc.cs` — generic Tarjan SCC + ordered-set / sequence helpers.
 - `PosixPath.cs` — `path.posix`-style normalize / join / dirname.
 - `Viewer.cs` — `Render(model, config)`: turns any `Model` into the viewer HTML;
   inlines the matrix client, the graph client, and Cytoscape + fcose; payload DTOs.
 
-**`Node/`** — TypeScript/Node ecosystem (the only TS-aware code):
+**`Node/`** — TypeScript/Node ecosystem (source):
 
-- `NodeAnalyzer.cs` — `Build(config)`: scan, resolve, cluster, SCC → `Core.Model`.
+- `NodeAnalyzer.cs` — `Build(config)`: scan `.ts/.tsx`, resolve imports → `Core.Model`.
+
+**`Dotnet/`** — .NET ecosystem (compiled assemblies):
+
+- `DotnetAnalyzer.cs` — `Build(config)`: read built assemblies via
+  `System.Reflection.Metadata` (structural + IL-body type edges) → `Core.Model`.
 
 **`assets/`** — embedded, inlined verbatim into the HTML:
 
