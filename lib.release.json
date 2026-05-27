@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/rzmoz/lib.release/main/lib.release.schema.json",
+  "releases": [
+    {
+      "name": "lib.inspector-gadget",
+      "version": "0.1.0",
+      "prerelease": ""
+    }
+  ],
+  "tests": []
+}

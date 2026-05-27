@@ -61,15 +61,15 @@ source is below.
 
 ### Build & run
 
-Requires the **.NET 10 SDK**; the project lives in the `inspector-gadget/` subfolder
+Requires the **.NET 10 SDK**; the project lives in the `lib.inspector-gadget/` subfolder
 and has no NuGet dependencies (BCL-only).
 
 ```
 # local debug (framework-dependent, no RID needed)
-dotnet run --project inspector-gadget -- node --code-root <dir>
+dotnet run --project lib.inspector-gadget -- node --code-root <dir>
 
 # release: single-file, self-contained, OS-agnostic — pick a runtime identifier
-dotnet publish inspector-gadget -c Release -r win-x64   # or win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64
+dotnet publish lib.inspector-gadget -c Release -r win-x64   # or win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64
 ```
 
 A self-contained publish bundles the .NET runtime plus all assets, so the
@@ -142,7 +142,7 @@ console report are **deterministic** across runs.
 
 ## Layout
 
-All under the `inspector-gadget/` subfolder (repo-level files — LICENSE, README,
+All under the `lib.inspector-gadget/` subfolder (repo-level files — LICENSE, README,
 .gitignore, .gitattributes, CLAUDE.md — stay at the repo root). The code is split so it's obvious which parts are
 generic and which are tech-stack-specific: **`Core/`** is ecosystem-agnostic,
 **`Analyzer/`** holds the per-ecosystem analyzers, and the root is the generic CLI

@@ -6,7 +6,7 @@ root*, with two interactive tabs over the same dependency model — a Dependency
 Structure **Matrix** and a Cytoscape dependency **Graph**. The emitted HTML has
 no runtime and no build step; it opens straight from `file://`.
 
-The tool is a single **.NET (`net10.0`) CLI** in the `inspector-gadget/` subfolder;
+The tool is a single **.NET (`net10.0`) CLI** in the `lib.inspector-gadget/` subfolder;
 repo-level files (README, LICENSE, .gitignore, .gitattributes, this CLAUDE.md) stay
 at the repo root. The two client
 renderers + Cytoscape/fcose are embedded as resources and inlined verbatim into
@@ -21,14 +21,14 @@ produces the shared `Core.Model`.
   whole thing is BCL-only (`System.Text.Json`, `System.Reflection.Metadata`,
   `System.Xml.Linq`). `dotnet build` is clean (0 warnings). Repo branch: `main`;
   license: MIT.
-- **Debug:** `dotnet run --project inspector-gadget -- <node|dotnet> --code-root
+- **Debug:** `dotnet run --project lib.inspector-gadget -- <node|dotnet> --code-root
   <dir> [-h|--help]` (or the built exe
-  `inspector-gadget/bin/Debug/net10.0/inspector-gadget.exe`).
-- **Release (exe):** `dotnet publish inspector-gadget -c Release -r <rid>` (`<rid>` = win-x64/
+  `lib.inspector-gadget/bin/Debug/net10.0/inspector-gadget.exe`).
+- **Release (exe):** `dotnet publish lib.inspector-gadget -c Release -r <rid>` (`<rid>` = win-x64/
   win-arm64/linux-x64/linux-arm64/osx-x64/osx-arm64) → single-file, self-contained,
   compressed exe. RID is supplied only at publish time; plain build/run stays
   framework-dependent and needs no RID.
-- **Release (NuGet tool):** `dotnet pack inspector-gadget -c Release` → a **single portable,
+- **Release (NuGet tool):** `dotnet pack lib.inspector-gadget -c Release` → a **single portable,
   OS-agnostic** .NET tool package (framework-dependent net10.0; runs anywhere the
   runtime exists), id **`lib.inspector-gadget`**, command `inspector-gadget`
   (`PackAsTool` / `ToolCommandName` in the csproj). Install via `dotnet tool
@@ -36,6 +36,12 @@ produces the shared `Core.Model`.
   and coexist. Version lives in the csproj (`<Version>`). **Do not add
   `<RuntimeIdentifiers>`** — it would make pack also emit per-RID self-contained
   tool packages; RIDs are passed on the CLI for the exe publish instead.
+- **Release driver:** `lib.release` (rzmoz tool) reads `lib.release.json` at the repo
+  root — its `version` is the published version (bump it to release). Hard rule: the
+  release name must equal folder == csproj filename == package id (all
+  `lib.inspector-gadget`) — that's why the subfolder is `lib.inspector-gadget/`, not
+  `inspector-gadget/`; don't rename one without the others. `lib.release <repo>
+  --ApiKey <key>` packs + pushes; `lib.release --check <dir>` is a read-only pre-flight.
 - **`--code-root` is required** (no default). The viewer is written to
   `<root>/codebase-dsm.html` and titled by the root dir's name.
 - **`node`** scans a TS/Node project's **source** (`.ts/.tsx`, incl. `.d.ts`).
@@ -59,8 +65,8 @@ payload DTO, inlines the clients + libs into `template.html`, writes the HTML,
 and prints the directionality report. The analysis runs on a **256 MB-stack
 worker thread** so deep recursion (Tarjan + reachability DFS) can't overflow.
 
-## Files (all under `inspector-gadget/`)
-The project lives in `inspector-gadget/`; its root = the generic CLI shell, `Core/`
+## Files (all under `lib.inspector-gadget/`)
+The project lives in `lib.inspector-gadget/`; its root = the generic CLI shell, `Core/`
 = ecosystem-agnostic, `Analyzer/` = tech-stack-specific, `assets/` = embedded client
 resources. (LICENSE, README, .gitignore, .gitattributes, CLAUDE.md sit one level up
 at the repo root.)
