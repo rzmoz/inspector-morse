@@ -1,5 +1,5 @@
 // Browser renderer for the hierarchical Dependency Structure Matrix. Plain DOM,
-// no framework. Inlined verbatim into codebase-dsm.html by dsm.mjs; reads the
+// no framework. Inlined verbatim into codebase-dsm.html by Core/Viewer.cs; reads the
 // global `DATA` blob: a context → namespace → file tree, the file-indexed import
 // edges, file-level cycle (SCC) + reachability info, and the context colour key.
 //

@@ -1,130 +1,178 @@
 # inspector-gadget — codebase guide
 
-Config-free codebase **dependency viewer**. Scans a target project (passed via
-`--code-root`) and emits one self-contained `codebase-dsm.html` (into that root)
-with two interactive tabs — a Dependency Structure **Matrix** and a Cytoscape
-dependency **Graph**. The emitted HTML has no runtime and no build step; it opens
-straight from `file://`. The tool itself is a single **.NET** (net10.0) CLI living
-at the repository root; the two client renderers and Cytoscape + fcose are embedded as
-resources and inlined verbatim into the HTML. The code splits cleanly into an
-**ecosystem-agnostic `Core/`** (the shared model + the viewer) and per-ecosystem
-analyzers in **`Analyzer/`** (`NodeAnalyzer` for TypeScript source, `DotnetAnalyzer`
-for compiled .NET assemblies) — class names signal which is which; each ecosystem
-just adds an analyzer that produces the shared model.
+Config-free codebase **dependency viewer**. Point it at a target project
+(`--code-root`) and it emits one self-contained `codebase-dsm.html` *into that
+root*, with two interactive tabs over the same dependency model — a Dependency
+Structure **Matrix** and a Cytoscape dependency **Graph**. The emitted HTML has
+no runtime and no build step; it opens straight from `file://`.
 
-## Run
-- Debug: `dotnet run -- <node|dotnet> --code-root <dir> [-h|--help]`
+The tool is a single **.NET (`net10.0`) CLI** at the repo root. The two client
+renderers + Cytoscape/fcose are embedded as resources and inlined verbatim into
+the HTML. Code splits into an **ecosystem-agnostic `Core/`** (shared model +
+viewer) and per-ecosystem analyzers in **`Analyzer/`** (`NodeAnalyzer` for
+TypeScript source, `DotnetAnalyzer` for compiled .NET assemblies). Class-name
+prefix signals the ecosystem; adding an ecosystem = add one analyzer that
+produces the shared `Core.Model`.
+
+## Build · run · verify
+- **Prereqs:** .NET 10 SDK only. **No NuGet dependencies, no test project** — the
+  whole thing is BCL-only (`System.Text.Json`, `System.Reflection.Metadata`,
+  `System.Xml.Linq`). `dotnet build` is clean (0 warnings). Repo branch: `main`;
+  license: MIT.
+- **Debug:** `dotnet run -- <node|dotnet> --code-root <dir> [-h|--help]`
   (or the built exe `bin/Debug/net10.0/inspector-gadget.exe`).
-- `node` scans a TS/Node project's source; `dotnet` scans a project's **built**
-  assemblies (NDepend-style: assembly → namespace → type, via System.Reflection.Metadata).
-  `--code-root` is required (no default); the viewer is written into it and titled by its dir name.
-- No config file — all settings are CLI args + built-in defaults (`Cli.cs`).
-- Release: `dotnet publish -c Release -r <rid>` → single-file, self-contained,
-  OS-agnostic exe (`<rid>` = win-x64/linux-x64/osx-arm64/…). Not packed/installed.
+- **Release:** `dotnet publish -c Release -r <rid>` (`<rid>` = win-x64/win-arm64/
+  linux-x64/linux-arm64/osx-x64/osx-arm64) → single-file, self-contained,
+  compressed exe. RID is supplied only at publish time; plain build/run stays
+  framework-dependent and needs no RID. Not packed/installed anywhere.
+- **`--code-root` is required** (no default). The viewer is written to
+  `<root>/codebase-dsm.html` and titled by the root dir's name.
+- **`node`** scans a TS/Node project's **source** (`.ts/.tsx`, incl. `.d.ts`).
+- **`dotnet`** scans a project's **built assemblies** (NDepend-style: assembly →
+  namespace → type) — **the target must be built first** (`dotnet build`).
+- **No config file** — every setting is a CLI arg + built-in defaults (`Cli.cs`).
+- **Verifying viewer/HTML changes:** serve the target dir with a tiny static
+  server + a throwaway `.claude/launch.json`, then use the preview tooling.
+  Screenshots may time out (Cytoscape's render loop) — prefer DOM `eval` (check
+  globals, node/edge counts, call `IMGraph` methods, read console errors). The
+  console report (`Viewer.PrintReport`) is also a quick sanity check. Remove the
+  throwaway server/launch.json afterwards.
+
+## Pipeline (the whole data flow)
+`Program.cs` validates args + dispatches → the chosen **analyzer** (`Analyzer/`)
+walks the target and produces raw leaves + ctx/ns tags + edges + third-party refs
+→ `Core.ModelBuilder.Assemble(...)` finalizes them into a complete `Core.Model`
+(palette colours, three Tarjan SCCs, cluster lists, ns→files map) →
+`Core.Viewer.Render(model, config)` computes the triangular order, builds the
+payload DTO, inlines the clients + libs into `template.html`, writes the HTML,
+and prints the directionality report. The analysis runs on a **256 MB-stack
+worker thread** so deep recursion (Tarjan + reachability DFS) can't overflow.
 
 ## Files (all in the repo root)
-**`Core/`** is ecosystem-agnostic (works for any codebase model); **`Analyzer/`**
-holds the tech-stack-specific analyzers. The root holds the generic CLI shell.
+Root = the generic CLI shell. `Core/` = ecosystem-agnostic. `Analyzer/` =
+tech-stack-specific. `assets/` = embedded client resources.
 
-- `Program.cs` — entry + ecosystem dispatch: validates `node|dotnet` + `--code-root`,
-  handles `--help`, then runs the matching ecosystem analyzer and renders.
-  The analysis runs on a large-stack worker thread.
-- `Cli.cs` — generic CLI parsing (`Cli.Parse`: command / `--code-root` / `--help`);
-  no config file.
+- `Program.cs` — entry + ecosystem dispatch (validate `node|dotnet` +
+  `--code-root`, `--help`); runs the analyzer + render on the large-stack worker.
+- `Cli.cs` — generic CLI parsing (`Cli.Parse`: command / `--code-root` /
+  `--help`; `--code-root=value` form too). No config file.
 
-### `Core/` — ecosystem-agnostic (any codebase model)
-- `Config.cs` — run config + generic derivation (`Config.For`: abs root, `title` =
-  dir name, output = `<root>/codebase-dsm.html`). Only `Exclude` is ecosystem-supplied.
-- `Model.cs` — the shared dependency model: contexts/namespaces/files, import
-  edges, per-level SCCs, third-party refs. The one definition of "the codebase"
-  that every analyzer produces and the viewer consumes — knows nothing about TS.
-- `ModelBuilder.cs` — `ModelBuilder.Assemble(...)`: the shared finalize step. An
-  analyzer supplies raw leaf nodes + tags + edges + third-party refs; this computes
-  palette colours, the three Tarjan SCCs, cluster lists and the namespace→files map
-  → a complete `Model`. Both analyzers call it.
-- `Scc.cs` — generic Tarjan SCC + insertion-order-preserving sets + `Seq`.
-- `PosixPath.cs` — faithful `path.posix` normalize/join/dirname, so import
-  resolution is identical regardless of the host OS separator.
-- `Viewer.cs` — `Viewer.Render(model, config)`: renders any `Model` into the HTML.
-  Computes the dependency-first ("triangular") sibling order per level (`TriOrder`),
-  ships a context→namespace→file tree + the raw file-indexed edge list (matrix) and
-  the graph payload; the matrix *cells/colours/cycles* are aggregated client-side
-  from those edges, so the C# side stays ordering + plumbing only. Fills the HTML
-  template with the inlined renderers + Cytoscape + fcose, writes the viewer, prints
-  the report. Also defines the payload DTOs.
+### `Core/` — ecosystem-agnostic
+- `Config.cs` — run config + derivation (`Config.For`: abs root, `Title` = dir
+  name, `OutputDsm` = `<root>/codebase-dsm.html`). Only `Exclude` is analyzer-fed.
+- `Model.cs` — the shared dependency model: files, edges, per-level SCCs
+  (`FileScc`/`GroupScc`/`CtxScc`), context/namespace lists + colour maps,
+  file→ctx/ns maps, third-party packages + edges, type-only cross-context edges.
+  The one definition of "the codebase"; knows nothing about any language.
+- `ModelBuilder.cs` — `Assemble(...)`: the shared finalize step. Computes
+  deterministic palette colours, the three Tarjan SCCs, cluster adjacency/lists,
+  and the ns→files map. Both analyzers call it.
+- `Scc.cs` — generic Tarjan SCC (deterministic: node + neighbour order preserved)
+  + insertion-order-preserving sets (`OrderedIntSet`/`OrderedStringSet`) + `Seq`.
+- `PosixPath.cs` — faithful port of Node `path.posix` normalize/join/dirname, so
+  TS import resolution is identical regardless of the host OS separator.
+- `Viewer.cs` — `Render(model, config)`: renders any `Model` → HTML + report.
+  Computes the dependency-first ("triangular") sibling order per level
+  (`TriOrder`), builds the context→namespace→file tree + raw **file-indexed edge
+  list** + reachability pairs (matrix) and the graph payload, then fills the
+  template (single-pass `Fill`) with the inlined renderers + Cytoscape/fcose.
+  Matrix *cells/colours/cycles* are aggregated **client-side** from the edge
+  list, so the C# side is ordering + plumbing only. Also defines the payload DTOs
+  (property names = the JS object keys the clients read).
 
-### `Analyzer/` — the per-ecosystem analyzers (namespace `InspectorGadget.Analyzer`)
-- `NodeAnalyzer.cs` — `NodeAnalyzer.Build(config)`: scans `.ts/.tsx`, resolves
-  relative + tsconfig-path imports, collects value/type/third-party refs, then hands
-  the raw bits to `ModelBuilder`. `DefaultExcludes` = node_modules/dist/build.
-- `DotnetAnalyzer.cs` — `DotnetAnalyzer.Build(config)`: NDepend-style analysis of the
-  target's **built** assemblies via `System.Reflection.Metadata` (BCL-only). Discovers
-  first-party assemblies from the `.csproj` layout + `bin` output, then per type
-  collects dependencies from structural metadata **and** decoded method-body IL.
-  context = assembly, namespace = C# namespace, leaf = type; every external assembly
-  (incl. `System.*`) is a third-party ref. The target must be built first. Produces a
-  `Core.Model` via `ModelBuilder`. `DefaultExcludes` = bin/obj/node_modules.
+### `Analyzer/` — per-ecosystem (namespace `InspectorGadget.Analyzer`)
+- `NodeAnalyzer.cs` — `Build(config)`: scan `.ts/.tsx`, resolve relative +
+  tsconfig-`paths` imports (regex-based: `import/export … from`, side-effect, and
+  dynamic `import()`/`require()`), collect value/type/third-party refs → hands raw
+  bits to `ModelBuilder`. `DefaultExcludes` = node_modules/dist/build. tsconfig is
+  parsed as JSONC (comments + trailing commas tolerated). Reads files as raw UTF-8
+  bytes (no BOM strip) to match Node's `readFileSync`.
+- `DotnetAnalyzer.cs` — `Build(config)`: NDepend-style analysis of the target's
+  **built** assemblies via `System.Reflection.Metadata` (BCL-only). Discovers
+  first-party assemblies from `.csproj` layout + `bin` output (skips `ref`/
+  `refint`, picks newest by write time), then per type collects dependencies from
+  structural metadata (base/interfaces/fields/properties/method sigs/attributes/
+  generic constraints) **and** decoded method-body IL (`WalkIL` over token-bearing
+  opcodes). context = assembly, namespace = C# namespace, leaf = type; every
+  external assembly (incl. `System.*`/`Microsoft.*`) is a third-party ref.
+  `DefaultExcludes` = bin/obj/node_modules. (No type-only/cross-context edges —
+  that concept is node-only; passes an empty list.)
 
-### `assets/` — embedded resources (generic; inlined verbatim into the HTML)
-- `dsm.client.js` — **Matrix** renderer (vanilla DOM).
-- `graph.client.js` — **Graph** renderer (Cytoscape).
+### `assets/` — embedded resources (inlined verbatim into the HTML)
+- `dsm.client.js` — **Matrix** renderer (vanilla DOM; reads global `DATA`).
+- `graph.client.js` — **Graph** renderer (Cytoscape; exposes `window.IMGraph`
+  with `init/fit/relayout/resize/expandAll/collapseAll`).
 - `cytoscape.min.js`, `layout-base.js`, `cose-base.js`, `cytoscape-fcose.js` —
-  the graph libraries.
-- `template.css`, `template.html` — page CSS + HTML skeleton (`${...}` placeholders
-  filled by `Viewer.cs`).
+  the graph libraries (joined with `\n;\n` and inlined).
+- `template.css`, `template.html` — page CSS + HTML skeleton. `${...}`
+  placeholders (`${title} ${CSS} ${LIBS} ${JSON.stringify(payload)} ${CLIENT}
+  ${GRAPH_CLIENT}`) are filled by `Viewer.Fill`.
 
-## Model conventions (everything derived from the target's layout)
-- **Context** = each top-level dir under `--code-root` (minus `exclude` names and
+## Invariants — preserve these when editing
+- **Determinism.** Output (HTML + console report) must diff cleanly across runs.
+  Sort node/edge/context lists. JS default sort / `<` ↔ `StringComparer.Ordinal`;
+  JS `localeCompare` (alpha order + triangular order) ↔
+  `StringComparer.InvariantCulture` with stable `OrderBy`. Keep `<Deterministic>`
+  on and **`<InvariantGlobalization>` OFF** — ICU collation is required for the
+  triangular order to mirror `localeCompare`.
+- **BCL-only.** No external NuGet, so the published single exe is fully
+  self-contained (no .NET install, no node_modules, no loose files).
+- **`assets/` are hand-edited static copies**, not generated — edit in place. They
+  are inlined into the HTML at render time, which is what makes the exe runtime-
+  free.
+- **`.gitattributes` forces LF** on all checkouts so the embedded assets (and the
+  emitted HTML) stay byte-stable across platforms.
+
+## Model conventions
+Everything is derived from the target's layout.
+
+**node ecosystem:**
+- **Context** = each top-level dir under `--code-root` (minus `exclude` names +
   dot-dirs); a context with no `.ts/.tsx` never appears.
 - **Source root** per context = its `src/` if present, else the dir itself.
-- **Namespace** = first path segment below the source root; root files → `(root)`.
-  Names are context-qualified, e.g. `TOW.EDB · pipeline`.
-- **Scan scope** = all `.ts/.tsx` including `.d.ts` (node always scans type
-  declarations); only `exclude` names + dot-dirs are skipped.
+- **Namespace** = first path segment below the source root; root files →
+  `(root)`. Context-qualified, e.g. `TOW.EDB · pipeline`.
 - **Cross-context resolution** = each context's `tsconfig*.json`
-  `compilerOptions.paths` is auto-read (System.Text.Json, comments + trailing
-  commas tolerated) to resolve non-relative imports that target sibling contexts
-  → cross-context first-party edges. There is no alias config — each context's
-  tsconfig is the only source.
-- **Edges**: value imports → `edges` (feed matrix + SCC + graph). Whole-statement
-  `import type` / `export type` excluded from `edges`. **Exception**: type-only
-  *cross-context* imports go to `typeXctxEdges` — graph-only, kept out of SCC so
-  they can't create false cycles (lets contract contexts show as depended-upon).
+  `compilerOptions.paths` (+ `baseUrl`) is auto-read to resolve non-relative
+  imports that target sibling contexts → cross-context first-party edges. No
+  alias config — each tsconfig is the only source.
+- **Edges:** value imports → `edges` (feed matrix + SCC + graph). Whole-statement
+  `import type` / `export type` are excluded from `edges` (they erase at build).
+  **Exception:** type-only *cross-context* imports go to `typeXctxEdges` —
+  graph-only, kept out of SCC so they can't create false cycles (lets contract
+  contexts show as depended-upon).
 - **Third-party** = non-relative imports resolving to neither a relative file nor
-  a tsconfig path-alias, excluding `node:` builtins. One node per package root;
-  type-only counts. Matrix only (purple, row axis); absent from the graph.
-- Output is **deterministic** — sort node/edge/context lists so the emitted HTML
-  and console report diff cleanly across runs. Preserve this when editing.
+  a tsconfig alias, excluding `node:` builtins. One node per package root
+  (`react`, `@scope/name`); type-only counts. Matrix-only (purple, row axis);
+  absent from the graph; pure sinks (never in cycles).
+
+**dotnet ecosystem:** context = assembly, namespace = C# namespace
+(context-qualified `{asm} · {ns}`, root types → `(root)`), leaf = type. Edges =
+type→type. Third-party = every referenced external assembly. No type-only or
+cross-context edge concept.
+
+**Both:** context/namespace colours are assigned from fixed pastel palettes by
+sorted name (`ModelBuilder`), so colours are deterministic.
 
 ## Matrix (`assets/dsm.client.js`)
 - Hierarchical DSM: context → namespace → file via expand/collapse. Cell `(r,c)`
-  means "row depends on col". Triangular (dependency-first) or alphabetical order.
-- Third-party rows pinned at the bottom (purple cells, `tpcell`); first-party
-  cells white — two distinguishable regions. Columns are first-party only.
-- Column headers: rotated vertical entry names + index. No row-header colour
-  swatch. "Collapse all" stops at the namespace level (contexts stay expanded).
+  = "row depends on col". Triangular (dependency-first) or alphabetical order;
+  Direct or `+ Indirect` (transitive reachability) mode.
+- Third-party rows pinned at the bottom (purple `tpcell`), toggleable
+  (`3rd-party / hide`); first-party cells white. **Columns are first-party only**
+  (NDepend style) — third-party never a column.
+- Parent cells aggregate descendants' file imports; ancestor/descendant +
+  diagonal render as "nesting". Click a cell to list the imports behind it.
+- "Collapse all" stops at the namespace level (contexts stay expanded).
 
 ## Graph (`assets/graph.client.js`)
 - Cytoscape compound graph: contexts = always-shown parents, namespaces =
-  collapsible compounds, files = leaves. Click a namespace to reveal/hide files.
-- Edges routed to the **deepest visible** node per endpoint (file when its
-  namespace is expanded, else the namespace) and aggregated; coloured by
-  directionality: purple cross-context, orange ns-cycle, blue forward, grey
-  intra, red file-cycle.
-- Layout: fcose `randomize:false` + deterministic grid seed → reproducible and
-  stable across expand/collapse.
-
-## Working notes
-- Verify visual / HTML changes in a real browser: serve the target dir with a
-  tiny static server + a `.claude/launch.json`, then use the preview tooling.
-  Screenshots may time out (Cytoscape's render loop) — verify via DOM `eval`
-  instead (check globals, node/edge counts, run `IMGraph` methods, read console
-  errors). Remove the throwaway server/launch.json afterwards.
-- Determinism mirrors the conventions exactly: JS default sort / `<` →
-  `StringComparer.Ordinal`; `localeCompare` (triangular order) →
-  `StringComparer.InvariantCulture` with stable `OrderBy`. Keep sorts stable, and
-  keep `InvariantGlobalization` off (ICU is required for the collation).
-- `assets/` holds static copies: the two renderers, the Cytoscape/fcose libs, and
-  the CSS/HTML template. They are not generated — edit them in place. The analysis
-  stays BCL-only (System.Text.Json; no external NuGet) so the published single
-  exe is fully self-contained (no .NET install, no node_modules, no loose files).
+  collapsible compounds, files = leaves. Click a namespace to reveal/hide files;
+  mounts lazily on first tab show (`IMGraph.init`).
+- Each file→file edge is routed to the **deepest visible** node per endpoint
+  (file when its namespace is expanded, else the namespace), self-loops dropped,
+  duplicates aggregated. Coloured by directionality: **purple** cross-context,
+  **orange** ns-cycle, **blue** forward cross-namespace, **grey** intra (file),
+  **red** file-cycle.
+- Layout: fcose `randomize:false` + deterministic grid seed (position by element
+  order) → reproducible and stable across expand/collapse.

@@ -1,8 +1,8 @@
 namespace InspectorGadget.Core;
 
 // The ecosystem-agnostic dependency model — the single shared definition of "the
-// codebase" that every analyzer (Node today, .NET later) produces and that the
-// Viewer renders. Nothing here knows about TypeScript: it is just contexts,
+// codebase" that every analyzer (Node + .NET) produces and that the Viewer
+// renders. Nothing here knows about any one language: it is just contexts,
 // namespaces, files, import edges, per-level SCCs, and third-party references.
 internal sealed class Model
 {

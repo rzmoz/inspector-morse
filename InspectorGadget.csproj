@@ -31,9 +31,8 @@
   </PropertyGroup>
 
   <!-- Inlined verbatim into the emitted codebase-dsm.html (the matrix + graph
-       renderers, Cytoscape + fcose, and the CSS/HTML template extracted from the
-       original src/). Embedding them is what makes the exe self-contained with
-       no node_modules at runtime. -->
+       renderers, Cytoscape + fcose, and the CSS/HTML template). Embedding them is
+       what makes the exe self-contained with no node_modules at runtime. -->
   <ItemGroup>
     <None Remove="assets\**" />
     <EmbeddedResource Include="assets\dsm.client.js"><LogicalName>dsm.client.js</LogicalName></EmbeddedResource>

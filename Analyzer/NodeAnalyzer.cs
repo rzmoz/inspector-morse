@@ -11,8 +11,8 @@ namespace InspectorGadget.Analyzer;
 // dependency graph, clusters files into namespaces inside contexts, runs Tarjan
 // SCC at file / namespace / context level, and collects unresolved non-relative
 // imports as third-party references. Produces the ecosystem-agnostic Core.Model
-// that Core.Viewer renders. A future .NET ecosystem analyzer would sit beside
-// this and produce the same Model.
+// that Core.Viewer renders. The sibling DotnetAnalyzer does the same for compiled
+// .NET assemblies, producing the same Model.
 internal static class NodeAnalyzer
 {
     // node-ecosystem default: directory names skipped while walking. .d.ts type
