@@ -18,7 +18,9 @@ The tool is a single **.NET (`net10.0`) CLI**; the two browser renderers and
 Cytoscape + fcose are embedded into the executable and inlined into the emitted
 HTML, so there's nothing to install or serve. It analyzes two ecosystems today —
 **TypeScript/Node source** and **compiled .NET assemblies** — and is built so
-adding another is just one more analyzer producing the same model.
+adding another is just one more analyzer producing the same model. It packages as
+the cross-platform .NET tool **`lib.inspector-gadget`** (the command stays
+`inspector-gadget`).
 
 ## Usage
 
@@ -43,6 +45,19 @@ Example:
 ```
 inspector-gadget node --code-root C:\Projects\battlebuddy
 ```
+
+### Install
+
+Packaged as a cross-platform **.NET tool** — NuGet package id
+**`lib.inspector-gadget`**, invoked with the command `inspector-gadget`:
+
+```
+dotnet tool install --global lib.inspector-gadget
+inspector-gadget node --code-root <dir>
+```
+
+(`dotnet tool update --global lib.inspector-gadget` to upgrade.) Building from
+source is below.
 
 ### Build & run
 

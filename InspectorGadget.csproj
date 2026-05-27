@@ -15,6 +15,29 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <!-- NuGet packaging: `dotnet pack` produces a cross-platform .NET tool package
+       (framework-dependent), package id `lib.inspector-gadget`, installed via
+       `dotnet tool install`/`update`. The typed command stays `inspector-gadget`
+       (ToolCommandName). Independent of the RID-based self-contained single-file
+       publish below — both distribution modes coexist. -->
+  <PropertyGroup>
+    <PackageId>lib.inspector-gadget</PackageId>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>inspector-gadget</ToolCommandName>
+    <Version>0.1.0</Version>
+    <Authors>rzmoz</Authors>
+    <Description>Config-free codebase dependency viewer. Scans a TypeScript/Node project's source or a .NET project's built assemblies and emits one self-contained, runtime-free codebase-dsm.html with interactive Dependency-Structure-Matrix and Cytoscape graph tabs.</Description>
+    <PackageTags>dependency-graph;dsm;dependency-structure-matrix;codebase;static-analysis;typescript;dotnet;cytoscape;cli;dotnet-tool</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/rzmoz/inspector-gadget</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rzmoz/inspector-gadget</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
   <!-- Release artifact prep: single-file, self-contained, OS-agnostic.
        RID is supplied at publish time (e.g. `dotnet publish -r win-x64`), so a
        plain `dotnet build` / `dotnet run` for local debug stays framework-

@@ -21,10 +21,15 @@ produces the shared `Core.Model`.
   license: MIT.
 - **Debug:** `dotnet run -- <node|dotnet> --code-root <dir> [-h|--help]`
   (or the built exe `bin/Debug/net10.0/inspector-gadget.exe`).
-- **Release:** `dotnet publish -c Release -r <rid>` (`<rid>` = win-x64/win-arm64/
-  linux-x64/linux-arm64/osx-x64/osx-arm64) → single-file, self-contained,
+- **Release (exe):** `dotnet publish -c Release -r <rid>` (`<rid>` = win-x64/
+  win-arm64/linux-x64/linux-arm64/osx-x64/osx-arm64) → single-file, self-contained,
   compressed exe. RID is supplied only at publish time; plain build/run stays
-  framework-dependent and needs no RID. Not packed/installed anywhere.
+  framework-dependent and needs no RID.
+- **Release (NuGet tool):** `dotnet pack -c Release` → a cross-platform .NET tool
+  package, id **`lib.inspector-gadget`**, command `inspector-gadget`
+  (`PackAsTool` / `ToolCommandName` in the csproj). Install via `dotnet tool
+  install --global lib.inspector-gadget`. The two release modes are independent
+  and coexist. Version lives in the csproj (`<Version>`).
 - **`--code-root` is required** (no default). The viewer is written to
   `<root>/codebase-dsm.html` and titled by the root dir's name.
 - **`node`** scans a TS/Node project's **source** (`.ts/.tsx`, incl. `.d.ts`).
@@ -63,7 +68,10 @@ tech-stack-specific. `assets/` = embedded client resources.
 - `Model.cs` — the shared dependency model: files, edges, per-level SCCs
   (`FileScc`/`GroupScc`/`CtxScc`), context/namespace lists + colour maps,
   file→ctx/ns maps, third-party packages + edges, type-only cross-context edges.
-  The one definition of "the codebase"; knows nothing about any language.
+  The one definition of "the codebase"; knows nothing about any language. Also
+  home to the `Edge(From,To)` / `TpRef(From,Package)` record structs (value
+  equality → a `HashSet<Edge>` dedups directly, no string keys) and the
+  `Model.NsSep` (`" · "`) constant used to qualify namespace labels.
 - `ModelBuilder.cs` — `Assemble(...)`: the shared finalize step. Computes
   deterministic palette colours, the three Tarjan SCCs, cluster adjacency/lists,
   and the ns→files map. Both analyzers call it.
@@ -72,13 +80,17 @@ tech-stack-specific. `assets/` = embedded client resources.
 - `PosixPath.cs` — faithful port of Node `path.posix` normalize/join/dirname, so
   TS import resolution is identical regardless of the host OS separator.
 - `Viewer.cs` — `Render(model, config)`: renders any `Model` → HTML + report.
-  Computes the dependency-first ("triangular") sibling order per level
-  (`TriOrder`), builds the context→namespace→file tree + raw **file-indexed edge
-  list** + reachability pairs (matrix) and the graph payload, then fills the
-  template (single-pass `Fill`) with the inlined renderers + Cytoscape/fcose.
-  Matrix *cells/colours/cycles* are aggregated **client-side** from the edge
-  list, so the C# side is ordering + plumbing only. Also defines the payload DTOs
-  (property names = the JS object keys the clients read).
+  `TriOrder` (+ `ContextMajorOrder`) computes the dependency-first ("triangular")
+  sibling order per level; `BuildPayload` orchestrates `BuildTree` (the
+  context→namespace→file tree), `BuildMatrixData` (file-indexed edge list +
+  reachability pairs), `BuildThirdParty`, and `BuildGraphData`, then `AssembleHtml`
+  fills the template (single-pass `Fill`) with the inlined renderers + Cytoscape/
+  fcose. Matrix *cells/colours/cycles* are aggregated **client-side** from the
+  edge list, so the C# side is ordering + plumbing only. Defines the payload DTOs
+  (`[JsonPropertyName]` = the JS object keys the clients read) and the `Wire`
+  helper (`CtxId`/`NsId`/`FileId`). The **WIRE CONTRACT** comment at the top is the
+  one place that enumerates the C#↔JS string protocol — read it before touching
+  payload shape.
 
 ### `Analyzer/` — per-ecosystem (namespace `InspectorGadget.Analyzer`)
 - `NodeAnalyzer.cs` — `Build(config)`: scan `.ts/.tsx`, resolve relative +
@@ -96,7 +108,8 @@ tech-stack-specific. `assets/` = embedded client resources.
   opcodes). context = assembly, namespace = C# namespace, leaf = type; every
   external assembly (incl. `System.*`/`Microsoft.*`) is a third-party ref.
   `DefaultExcludes` = bin/obj/node_modules. (No type-only/cross-context edges —
-  that concept is node-only; passes an empty list.)
+  that concept is node-only; passes an empty list.) Type identity + location use
+  the local `TypeId(Assembly,FullName)` / `TypeLoc(ReaderIdx,Handle)` records.
 
 ### `assets/` — embedded resources (inlined verbatim into the HTML)
 - `dsm.client.js` — **Matrix** renderer (vanilla DOM; reads global `DATA`).
@@ -115,6 +128,11 @@ tech-stack-specific. `assets/` = embedded client resources.
   `StringComparer.InvariantCulture` with stable `OrderBy`. Keep `<Deterministic>`
   on and **`<InvariantGlobalization>` OFF** — ICU collation is required for the
   triangular order to mirror `localeCompare`.
+- **The C#↔JS wire contract is unenforced.** `Viewer.cs` produces node-id strings
+  (`Wire.CtxId`/`NsId`/`FileId`) + the `[JsonPropertyName]` payload keys that
+  `dsm.client.js` and `graph.client.js` consume by hand — no compile-time link.
+  Change one side and you MUST change the other. The `WIRE CONTRACT` comments
+  (top of `Viewer.cs` and each JS client) enumerate the shared keys/prefixes.
 - **BCL-only.** No external NuGet, so the published single exe is fully
   self-contained (no .NET install, no node_modules, no loose files).
 - **`assets/` are hand-edited static copies**, not generated — edit in place. They
