@@ -25,11 +25,14 @@ produces the shared `Core.Model`.
   win-arm64/linux-x64/linux-arm64/osx-x64/osx-arm64) → single-file, self-contained,
   compressed exe. RID is supplied only at publish time; plain build/run stays
   framework-dependent and needs no RID.
-- **Release (NuGet tool):** `dotnet pack -c Release` → a cross-platform .NET tool
-  package, id **`lib.inspector-gadget`**, command `inspector-gadget`
+- **Release (NuGet tool):** `dotnet pack -c Release` → a **single portable,
+  OS-agnostic** .NET tool package (framework-dependent net10.0; runs anywhere the
+  runtime exists), id **`lib.inspector-gadget`**, command `inspector-gadget`
   (`PackAsTool` / `ToolCommandName` in the csproj). Install via `dotnet tool
   install --global lib.inspector-gadget`. The two release modes are independent
-  and coexist. Version lives in the csproj (`<Version>`).
+  and coexist. Version lives in the csproj (`<Version>`). **Do not add
+  `<RuntimeIdentifiers>`** — it would make pack also emit per-RID self-contained
+  tool packages; RIDs are passed on the CLI for the exe publish instead.
 - **`--code-root` is required** (no default). The viewer is written to
   `<root>/codebase-dsm.html` and titled by the root dir's name.
 - **`node`** scans a TS/Node project's **source** (`.ts/.tsx`, incl. `.d.ts`).

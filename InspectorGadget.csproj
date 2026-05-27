@@ -38,13 +38,13 @@
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <!-- Release artifact prep: single-file, self-contained, OS-agnostic.
-       RID is supplied at publish time (e.g. `dotnet publish -r win-x64`), so a
-       plain `dotnet build` / `dotnet run` for local debug stays framework-
-       dependent and never needs a RID. Not packed/installed here. -->
-  <PropertyGroup>
-    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
-  </PropertyGroup>
+  <!-- Self-contained single-file exe publish. The RID is supplied on the CLI
+       (e.g. `dotnet publish -c Release -r win-x64`; supported: win-x64, win-arm64,
+       linux-x64, linux-arm64, osx-x64, osx-arm64). <RuntimeIdentifiers> is
+       deliberately NOT declared — that keeps `dotnet pack` a single portable,
+       OS-agnostic .NET tool (declaring it makes the SDK also emit per-RID
+       self-contained tool packages). The properties below apply only when a RID
+       is actually passed, so a plain `dotnet build`/`dotnet run` needs none. -->
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
