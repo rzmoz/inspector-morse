@@ -31,6 +31,7 @@ tools/inspector-gadget/
     template.html        page skeleton (matrix-only — no tabs, no graph pane)
     template.css         page CSS
     dsm.client.js        matrix renderer (vanilla DOM; reads global DATA)
+install.bat         mirrors only the slash-command .md into ~/.claude/commands/
 GLOSSARY.md         vocabulary anchor (imported above)
 README.md           install + use
 LICENSE             MIT
@@ -40,7 +41,7 @@ LICENSE             MIT
 ## Pipeline (data flow)
 
 `/inspector-gadget <code-root>` →
-slash command (in chat) runs **`node tools/inspector-gadget/index.mjs <code-root>`** →
+slash command (in chat) runs **`node C:\Projects\inspector-gadget\tools\inspector-gadget\index.mjs <code-root>`** →
 `index.mjs` auto-detects ecosystem(s) by file presence (`*.csproj`/`*.sln` →
 .NET; `*.ts*`/`tsconfig*.json` → TS); if both, **both analyzers run and merge**
 into one model; `--ecosystem=ts|dotnet|auto` overrides →
@@ -53,6 +54,19 @@ file/namespace/context, cluster lists, ns→files) →
 report to **stderr** and a compact JSON summary to **stdout** →
 slash command parses stdout and emits the ASCII namespace-level tables in chat.
 
+## Install / distribution — single hardcoded path, no drift
+
+- The tool lives **only in this repo**, at
+  `C:\Projects\inspector-gadget\tools\inspector-gadget\`. There is **no copy in
+  `~/.claude/tools/`** — duplicating it there just creates drift.
+- The slash command (`.md` file) is mirrored to `~/.claude/commands/` by
+  `install.bat` so `/inspector-gadget` is invocable from any project. Both
+  copies of the `.md` (repo-local + global) are pinned to the same single
+  hardcoded tool path, so they cannot semantically diverge.
+- **If the repo is cloned somewhere other than `C:\Projects\inspector-gadget`**,
+  edit the `Locate the tool` step of `.claude/commands/inspector-gadget.md`
+  (and re-run `install.bat`) to repoint the pin.
+
 ## Build · run · verify
 
 - **Prereqs.** Node.js (any LTS) for the orchestrator; **.NET 10 SDK** when the
@@ -64,9 +78,9 @@ slash command parses stdout and emits the ASCII namespace-level tables in chat.
   ```
   Writes `<code-root>/codebase-dsm.html`; stdout = JSON summary; stderr = report.
 - **Slash command:** `/inspector-gadget [code-root]`. With no arg → cwd. The
-  command body lives in `.claude/commands/inspector-gadget.md`; it locates the
-  tool via three candidates (repo-local, `~/.claude/tools/`,
-  `$USERPROFILE/.claude/tools/`).
+  command body lives in `.claude/commands/inspector-gadget.md`; it invokes the
+  pinned path `C:\Projects\inspector-gadget\tools\inspector-gadget\index.mjs`
+  directly (no fallbacks).
 - **Building the .NET helper** (first run only):
   ```
   dotnet build tools/inspector-gadget/analyze-dotnet/ -c Release
@@ -90,8 +104,8 @@ slash command parses stdout and emits the ASCII namespace-level tables in chat.
   Look for `WIRE` / `WIRE CONTRACT` comments at the top of `render.mjs` and
   `dsm.client.js`.
 - **BCL-only + Node-stdlib-only.** No external NuGet refs in the helper; no
-  npm dependencies in the node side. This is what makes the tool self-contained
-  — `tools/inspector-gadget/` copied anywhere just works.
+  npm dependencies in the node side. Self-contained — the tool runs straight
+  out of `tools/inspector-gadget/` with no install step.
 - **`assets/` are hand-edited static files**, not generated — edit in place.
   Inlined verbatim into the HTML at render time; that is what keeps the
   emitted file runtime-free.
@@ -105,6 +119,10 @@ slash command parses stdout and emits the ASCII namespace-level tables in chat.
   adding any of those, you've misread the goal — the user's distribution
   preference is "no dotnet tool deliverable"; the helper exists only because
   `System.Reflection.Metadata` is the only clean way to read PE/IL.
+- **Single source of truth for the tool path.** The tool lives at one pinned
+  path; no global copy in `~/.claude/tools/`. If you find yourself adding
+  fallback paths or a tool-mirror step to `install.bat`, you're re-introducing
+  the drift this design exists to prevent.
 
 ## Model conventions
 

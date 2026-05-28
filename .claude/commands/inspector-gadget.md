@@ -11,23 +11,22 @@ You are running `/inspector-gadget`. Arguments: `$ARGUMENTS`.
    directory. Otherwise target = `$ARGUMENTS` (a directory path; first positional
    wins, ignore trailing words). Resolve to absolute via `Bash` if needed.
 
-2. **Locate the tool.** Try these in order, use the first that exists:
-   - `<repo-root>/tools/inspector-gadget/index.mjs` (this repo authoring home)
-   - `$HOME/.claude/tools/inspector-gadget/index.mjs` (globally promoted copy)
-   - `$USERPROFILE/.claude/tools/inspector-gadget/index.mjs` (Windows global)
+2. **Locate the tool.** The tool lives at a single hardcoded path:
 
-   If none exist, stop. Emit this error verbatim — substitute the three actual
-   paths you tried — and do not try to repair the install:
+   ```
+   C:\Projects\inspector-gadget\tools\inspector-gadget\index.mjs
+   ```
 
-   > **inspector-gadget tool not found.**
-   > Tried:
-   > &nbsp;&nbsp;`<absolute repo path>/tools/inspector-gadget/index.mjs`
-   > &nbsp;&nbsp;`<absolute $HOME>/.claude/tools/inspector-gadget/index.mjs`
-   > &nbsp;&nbsp;`<absolute $USERPROFILE>\.claude\tools\inspector-gadget\index.mjs`
+   If that file does not exist, stop. Emit this error verbatim and do not try
+   to repair the install:
+
+   > **inspector-gadget tool not found** at
+   > `C:\Projects\inspector-gadget\tools\inspector-gadget\index.mjs`.
    >
-   > Run `install.bat` from the inspector-gadget repo
-   > (https://github.com/rzmoz/inspector-gadget) for a one-click install, or
-   > copy `tools/inspector-gadget/` into any of the three paths above.
+   > The slash command is pinned to that single location (no fallbacks). Either
+   > clone https://github.com/rzmoz/inspector-gadget to `C:\Projects\inspector-gadget`,
+   > or edit the `Locate the tool` step of this `.md` to point at wherever the
+   > repo lives on this machine.
 
 3. **Run the analyzer.** Invoke:
    `node <tool>/index.mjs <target>`

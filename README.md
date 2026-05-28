@@ -24,8 +24,15 @@ analyzers run, results merge into one model.
 
 ## Install
 
-The repo authors the tool here; you use it by making it discoverable to Claude
-Code in any project. Pick one:
+The repo authors the tool here. The slash command is **pinned to a single
+hardcoded path** — no fallbacks, no global tool copy, no drift. The tool lives
+only in this repo; only the slash command file gets mirrored globally so
+`/inspector-gadget` is invocable from any project.
+
+**Pinned tool path** (edit the slash command if your clone lives elsewhere):
+```
+C:\Projects\inspector-gadget\tools\inspector-gadget\index.mjs
+```
 
 **Per-repo (this repo only).** Already wired:
 ```
@@ -33,14 +40,9 @@ Code in any project. Pick one:
 tools/inspector-gadget/                  ← the node tool + dotnet helper
 ```
 
-**Globally for every project.** Copy both into `~/.claude/`:
-```
-cp .claude/commands/inspector-gadget.md   ~/.claude/commands/
-cp -r tools/inspector-gadget              ~/.claude/tools/
-```
-The slash command body tries the repo-local path first, then
-`~/.claude/tools/inspector-gadget/index.mjs`, then `$USERPROFILE/.claude/tools/...`
-on Windows.
+**Globally for every project.** Run `install.bat` — it copies the slash command
+into `%USERPROFILE%\.claude\commands\`. The tool itself stays in this repo;
+both `.md` files point at the same pinned path.
 
 **Prerequisites.**
 - **Node.js** (any LTS). Required for the orchestrator.
