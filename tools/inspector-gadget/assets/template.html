@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>:root{--rowh:320px;--colh:170px}${CSS}</style></head>
+<body>
+<header>
+  <h1>${title}</h1>
+  <div class="meta" id="meta"></div>
+</header>
+<div id="matrixpane">
+  <div class="controls">
+    <div class="seg" id="xpand"><button data-act="expand">Expand all</button><button data-act="collapse">Collapse all</button></div>
+    <div class="seg" data-ctl="order"><button data-val="tri">Triangular</button><button data-val="alpha">Alphabetical</button></div>
+    <div class="seg" data-ctl="mode"><button data-val="direct">Direct</button><button data-val="indirect">+ Indirect</button></div>
+    <div class="seg" data-ctl="tp"><button data-val="show">3rd-party</button><button data-val="hide">hide</button></div>
+    <div class="legend">
+      <span><i style="background:#3b82f6"></i>row→col depends</span>
+      <span><i style="background:#16a34a"></i>col→row depends</span>
+      <span><i style="background:#111"></i>mutual</span>
+      <span><i style="background:#fff;box-shadow:inset 0 0 0 2px #dc2626"></i>cycle</span>
+      <span><i style="background:#bfdbfe"></i>indirect</span>
+    </div>
+  </div>
+  <div class="ctxbar" id="ctxlegend"></div>
+  <div class="help" id="help"></div>
+  <div class="stage">
+    <div class="grid" id="grid"></div>
+    <aside class="panel empty" id="panel"><div id="pbody"></div></aside>
+  </div>
+</div>
+<script>const DATA=${JSON.stringify(payload)};</script>
+<script>${CLIENT}</script>
+</body></html>

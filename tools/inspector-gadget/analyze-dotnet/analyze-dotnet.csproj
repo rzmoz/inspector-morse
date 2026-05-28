@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>InspectorGadget.Dotnet</RootNamespace>
+    <Deterministic>true</Deterministic>
+    <!-- ICU on: IL parsing + names use System ordinal/invariant where needed
+         directly; OFF flips ordering ICU-out and is not desired. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- explicitly NOT a NuGet tool: no PackAsTool, no ToolCommandName, no
+         <Version>. This is a local helper invoked by tools/inspector-gadget
+         /index.mjs via `dotnet run`. BCL-only. -->
+  </PropertyGroup>
+
+</Project>

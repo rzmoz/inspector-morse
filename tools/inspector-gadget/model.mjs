@@ -1,0 +1,144 @@
+// Shared finalize step + Tarjan SCC + ordered-set helpers.
+// Port of Core/ModelBuilder.cs + Core/Scc.cs.
+//
+// Input shape (from any analyzer, possibly merged):
+//   { files: string[], fileCtx: {file:ctx}, fileNs: {file:ns},
+//     edges: [from,to][], tpEdges: [from,pkg][], tpPkgs: string[],
+//     typeXctxEdges: [from,to][] }
+// Output: a finalized Model with palette colours, per-level Tarjan SCCs,
+// cluster lists, ns→files map — directly consumed by render.mjs.
+
+export const NS_SEP = ' · ';
+
+const CTX_PALETTE = [
+  '#eaf2ff', '#fdeef0', '#ecfbef', '#fff5d6', '#f3e8ff', '#e6fbfb', '#fef3e2', '#eef2f7'
+];
+const NS_PALETTE = [
+  '#cfe8ff', '#ffd1dc', '#d6f5d6', '#ffe9a6', '#e6c9e0', '#cfe8e0', '#ffdfba', '#d9d9d9',
+  '#ffc9c9', '#cce5ff', '#ffe0b3', '#ffb3ba', '#c9e4ff', '#d6d6f5', '#f5d6d6', '#d6f5ec'
+];
+
+// Distinct preserving first-seen order (≡ [...new Set(seq)]).
+export function distinctInOrder(seq) {
+  const s = new Set(), o = [];
+  for (const x of seq) if (!s.has(x)) { s.add(x); o.push(x); }
+  return o;
+}
+
+// Tarjan SCC; node + neighbour order preserved → deterministic component ids.
+// Iterative (avoid recursion-depth blowups on large graphs).
+export function tarjan(nodes, adj) {
+  const comps = [];
+  const id = new Map();
+  const index = new Map();
+  const low = new Map();
+  const onStack = new Set();
+  const stack = [];
+  let idx = 0;
+
+  // explicit work stack: each frame = { v, neighbours, ni }
+  for (const start of nodes) {
+    if (index.has(start)) continue;
+    const work = [];
+    const push = (v) => {
+      index.set(v, idx); low.set(v, idx); idx++;
+      stack.push(v); onStack.add(v);
+      work.push({ v, ns: adj.get(v) || [], ni: 0 });
+    };
+    push(start);
+    while (work.length > 0) {
+      const f = work[work.length - 1];
+      if (f.ni < f.ns.length) {
+        const w = f.ns[f.ni++];
+        if (!index.has(w)) { push(w); continue; }
+        if (onStack.has(w)) low.set(f.v, Math.min(low.get(f.v), index.get(w)));
+        continue;
+      }
+      // post-visit
+      if (low.get(f.v) === index.get(f.v)) {
+        const comp = [];
+        let w;
+        do {
+          w = stack.pop(); onStack.delete(w); comp.push(w);
+        } while (w !== f.v);
+        const ci = comps.length;
+        comps.push(comp);
+        for (const n of comp) id.set(n, ci);
+      }
+      work.pop();
+      if (work.length > 0) {
+        const parent = work[work.length - 1];
+        low.set(parent.v, Math.min(low.get(parent.v), low.get(f.v)));
+      }
+    }
+  }
+  return { comps, id, size: (n) => comps[id.get(n)].length };
+}
+
+function buildClusterAdj(clusters, edges, of) {
+  const sets = new Map();
+  const adj = new Map();
+  for (const g of clusters) { sets.set(g, new Set()); adj.set(g, []); }
+  for (const [a, b] of edges) {
+    const ga = of(a), gb = of(b);
+    if (ga !== gb) {
+      const set = sets.get(ga);
+      if (set && !set.has(gb)) { set.add(gb); adj.get(ga).push(gb); }
+    }
+  }
+  return adj;
+}
+
+export function assemble(raw) {
+  const { files, fileCtx, fileNs, edges, tpEdges, tpPkgs, typeXctxEdges } = raw;
+  const ctxOf = (f) => fileCtx[f] ?? 'other';
+  const grpOf = (f) => fileNs[f] ?? 'other';
+
+  // palette colour by sorted name → deterministic
+  const usedCtx = [...new Set(files.map(ctxOf))].sort();
+  const usedNs = [...new Set(files.map(grpOf))].sort();
+  const ctxColourMap = {};
+  for (let i = 0; i < usedCtx.length; i++) ctxColourMap[usedCtx[i]] = CTX_PALETTE[i % CTX_PALETTE.length];
+  const nsColourMap = {};
+  for (let i = 0; i < usedNs.length; i++) nsColourMap[usedNs[i]] = NS_PALETTE[i % NS_PALETTE.length];
+
+  // file-level SCC
+  const fAdj = new Map();
+  for (const f of files) fAdj.set(f, []);
+  for (const [a, b] of edges) fAdj.get(a)?.push(b);
+  const fileScc = tarjan(files, fAdj);
+
+  // namespace-level SCC
+  const allGroups = distinctInOrder(files.map(grpOf));
+  const gAdj = buildClusterAdj(allGroups, edges, grpOf);
+  const groupScc = tarjan(allGroups, gAdj);
+
+  // context-level SCC
+  const allCtx = distinctInOrder(files.map(ctxOf));
+  const cAdj = buildClusterAdj(allCtx, edges, ctxOf);
+  const ctxScc = tarjan(allCtx, cAdj);
+
+  // ns → file list (insertion order)
+  const byGroup = {};
+  for (const f of files) {
+    const g = grpOf(f);
+    (byGroup[g] ??= []).push(f);
+  }
+
+  return {
+    files,
+    edges,
+    fileScc, groupScc, ctxScc,
+    allGroups, allCtx,
+    byGroup,
+    fileCtx, fileNs,
+    ctxColourMap, nsColourMap,
+    contextOrder: usedCtx,
+    tpPackages: [...new Set(tpPkgs)].sort(),
+    tpEdges,
+    typeXctxEdges,
+    ctxOf, grpOf,
+    ctxColour: (n) => ctxColourMap[n] ?? '#ffffff',
+    colourOf: (g) => nsColourMap[g] ?? '#ffffff',
+  };
+}
