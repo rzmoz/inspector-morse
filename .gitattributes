@@ -2,3 +2,7 @@
 # keeps LF on all platforms. This keeps the embedded assets (and therefore the
 # emitted codebase-dsm.html) byte-stable regardless of where the tool is built.
 * text=auto eol=lf
+
+# Windows batch files need CRLF — cmd.exe mis-parses LF-only .bat (the EOL
+# gets glued into the next token, eating its first character).
+*.bat text eol=crlf

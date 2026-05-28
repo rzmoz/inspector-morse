@@ -16,9 +16,18 @@ You are running `/inspector-gadget`. Arguments: `$ARGUMENTS`.
    - `$HOME/.claude/tools/inspector-gadget/index.mjs` (globally promoted copy)
    - `$USERPROFILE/.claude/tools/inspector-gadget/index.mjs` (Windows global)
 
-   If none exist, stop and tell the user the tool isn't installed for this
-   project — they need to copy `tools/inspector-gadget/` to one of those
-   locations. Don't try to repair it.
+   If none exist, stop. Emit this error verbatim — substitute the three actual
+   paths you tried — and do not try to repair the install:
+
+   > **inspector-gadget tool not found.**
+   > Tried:
+   > &nbsp;&nbsp;`<absolute repo path>/tools/inspector-gadget/index.mjs`
+   > &nbsp;&nbsp;`<absolute $HOME>/.claude/tools/inspector-gadget/index.mjs`
+   > &nbsp;&nbsp;`<absolute $USERPROFILE>\.claude\tools\inspector-gadget\index.mjs`
+   >
+   > Run `install.bat` from the inspector-gadget repo
+   > (https://github.com/rzmoz/inspector-gadget) for a one-click install, or
+   > copy `tools/inspector-gadget/` into any of the three paths above.
 
 3. **Run the analyzer.** Invoke:
    `node <tool>/index.mjs <target>`
